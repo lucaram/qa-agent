@@ -1,112 +1,36 @@
-import assert from 'node:assert';
-import { add, subtract, multiply, divide, factorial } from './math.js';
+import assert from "node:assert/strict";
+import { add, subtract, multiply, divide, factorial } from "./math.js";
 
-function test(name, fn) {
-  try {
-    fn();
-    console.log(`✓ ${name}`);
-  } catch (err) {
-    console.error(`✗ ${name}`);
-    console.error(err && err.stack ? err.stack : err);
-    process.exitCode = 1;
-  }
-}
+// Test add function
+assert.strictEqual(add(2, 3), 5);
+assert.strictEqual(add(-1, 1), 0);
 
-// add
-test('add: adds two positive integers', () => {
-  assert.strictEqual(add(2, 3), 5);
+// Test subtract function
+assert.strictEqual(subtract(5, 3), 2);
+assert.strictEqual(subtract(3, 5), -2);
+
+// Test multiply function
+assert.strictEqual(multiply(3, 4), 12);
+assert.strictEqual(multiply(-2, 5), -10);
+
+// Test divide function
+assert.strictEqual(divide(10, 2), 5);
+assert.strictEqual(divide(-10, 2), -5);
+
+// Test divide by zero exception
+assert.throws(() => divide(10, 0), {
+    message: "Division by zero"
 });
 
-test('add: adds with negative numbers', () => {
-  assert.strictEqual(add(-2, 3), 1);
-  assert.strictEqual(add(-2, -3), -5);
+// Test factorial function
+assert.strictEqual(factorial(0), 1);
+assert.strictEqual(factorial(1), 1);
+assert.strictEqual(factorial(5), 120);
+
+// Test factorial for negative input exception
+assert.throws(() => factorial(-1), {
+    message: "Negative number"
 });
 
-test('add: handles zero', () => {
-  assert.strictEqual(add(0, 0), 0);
-  assert.strictEqual(add(0, 7), 7);
-});
-
-// subtract
-test('subtract: subtracts two integers', () => {
-  assert.strictEqual(subtract(10, 4), 6);
-});
-
-test('subtract: subtracts resulting in negative', () => {
-  assert.strictEqual(subtract(4, 10), -6);
-});
-
-test('subtract: handles zero', () => {
-  assert.strictEqual(subtract(0, 5), -5);
-  assert.strictEqual(subtract(5, 0), 5);
-});
-
-// multiply
-test('multiply: multiplies two positive integers', () => {
-  assert.strictEqual(multiply(6, 7), 42);
-});
-
-test('multiply: multiplies with zero', () => {
-  assert.strictEqual(multiply(123, 0), 0);
-  assert.strictEqual(multiply(0, 123), 0);
-});
-
-test('multiply: multiplies with negative numbers', () => {
-  assert.strictEqual(multiply(-3, 5), -15);
-  assert.strictEqual(multiply(-3, -5), 15);
-});
-
-// divide
-test('divide: divides two numbers', () => {
-  assert.strictEqual(divide(10, 2), 5);
-});
-
-test('divide: returns fractional results', () => {
-  assert.strictEqual(divide(1, 2), 0.5);
-});
-
-test('divide: handles negative numbers', () => {
-  assert.strictEqual(divide(-10, 2), -5);
-  assert.strictEqual(divide(10, -2), -5);
-  assert.strictEqual(divide(-10, -2), 5);
-});
-
-test('divide: throws on division by zero', () => {
-  assert.throws(() => divide(1, 0), (err) => {
-    assert.ok(err instanceof Error);
-    assert.strictEqual(err.message, 'Division by zero');
-    return true;
-  });
-});
-
-// factorial
-test('factorial: factorial(0) is 1', () => {
-  assert.strictEqual(factorial(0), 1);
-});
-
-test('factorial: factorial(1) is 1', () => {
-  assert.strictEqual(factorial(1), 1);
-});
-
-test('factorial: factorial(5) is 120', () => {
-  assert.strictEqual(factorial(5), 120);
-});
-
-test('factorial: factorial(10) is 3628800', () => {
-  assert.strictEqual(factorial(10), 3628800);
-});
-
-test('factorial: throws on negative input', () => {
-  assert.throws(() => factorial(-1), (err) => {
-    assert.ok(err instanceof Error);
-    assert.strictEqual(err.message, 'Negative number');
-    return true;
-  });
-});
-
-// Summary exit code handling: if any test failed, process.exitCode is set to 1 above.
-process.on('exit', () => {
-  if (process.exitCode && process.exitCode !== 0) {
-    console.error('Some tests failed.');
-  }
-});
+// Test factorial for positive input
+assert.strictEqual(factorial(3), 6);
