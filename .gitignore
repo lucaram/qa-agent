@@ -8,6 +8,7 @@ __pycache__/
 .qa-agent-sandbox/
 qa-dashboard.json
 qa-benchmark.json
+qa-dashboard.html
 mutation-report.md
 qa-report.md
 repository-analysis.md

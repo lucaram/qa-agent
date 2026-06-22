@@ -1562,6 +1562,439 @@ function createBackup(files) {
   };
 }
 
+
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatDashboardValue(value) {
+  if (value === null || value === undefined) return "Not available";
+  if (Array.isArray(value)) return value.length === 0 ? "None" : value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function writeHtmlDashboard(dashboard) {
+  const status = dashboard.testResult
+    ? dashboard.testResult.passed
+      ? "PASS"
+      : "FAIL"
+    : "NOT RUN";
+
+  const statusClass =
+    status === "PASS" ? "pass" : status === "FAIL" ? "fail" : "neutral";
+
+  const changedSourceFiles = dashboard.git?.changedSourceFiles || [];
+  const focusedFiles = dashboard.focusedModel?.focusedFiles || [];
+  const targetFiles = dashboard.focusedModel?.targetFiles || [];
+  const highComplexity =
+    dashboard.deterministicSummary?.highComplexityFunctions || [];
+
+  const mutationScore =
+    dashboard.mutationResult?.mutationScore === null ||
+    dashboard.mutationResult?.mutationScore === undefined
+      ? "Not run"
+      : `${dashboard.mutationResult.mutationScore}%`;
+
+  const mutationStatus = dashboard.mutationResult
+    ? `${dashboard.mutationResult.killed}/${dashboard.mutationResult.candidatesExecuted} killed`
+    : "Not run";
+
+  const testDuration =
+    dashboard.testResult?.durationMs !== undefined
+      ? `${dashboard.testResult.durationMs} ms`
+      : "Not run";
+
+  const listItems = (items) =>
+    items.length === 0
+      ? `<li class="muted">None</li>`
+      : items.map((item) => `<li>${escapeHtml(item)}</li>`).join("");
+
+  const highComplexityRows =
+    highComplexity.length === 0
+      ? `<tr><td colspan="3" class="muted">None</td></tr>`
+      : highComplexity
+          .map(
+            (item) => `
+              <tr>
+                <td>${escapeHtml(item.file)}</td>
+                <td>${escapeHtml(item.function)}</td>
+                <td>${escapeHtml(item.cyclomaticComplexity)}</td>
+              </tr>
+            `
+          )
+          .join("");
+
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>QA Agent Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.86);
+      --panel-strong: rgba(30, 41, 59, 0.94);
+      --border: rgba(148, 163, 184, 0.24);
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --pass: #22c55e;
+      --fail: #ef4444;
+      --neutral: #f59e0b;
+      --accent: #38bdf8;
+      --purple: #a78bfa;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34rem),
+        radial-gradient(circle at top right, rgba(167, 139, 250, 0.16), transparent 32rem),
+        linear-gradient(135deg, #020617 0%, var(--bg) 48%, #111827 100%);
+      color: var(--text);
+      padding: 32px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    .hero {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+      margin-bottom: 24px;
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      letter-spacing: -0.05em;
+      line-height: 1;
+    }
+
+    .title-block p {
+      margin: 12px 0 0;
+      color: var(--muted);
+      max-width: 760px;
+      line-height: 1.6;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 18px;
+      border-radius: 999px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      white-space: nowrap;
+    }
+
+    .status-pill.pass {
+      color: #dcfce7;
+      background: rgba(34, 197, 94, 0.18);
+      border-color: rgba(34, 197, 94, 0.38);
+    }
+
+    .status-pill.fail {
+      color: #fee2e2;
+      background: rgba(239, 68, 68, 0.18);
+      border-color: rgba(239, 68, 68, 0.42);
+    }
+
+    .status-pill.neutral {
+      color: #fef3c7;
+      background: rgba(245, 158, 11, 0.18);
+      border-color: rgba(245, 158, 11, 0.42);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.11em;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 1.65rem;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      overflow-wrap: anywhere;
+    }
+
+    .metric-value.small {
+      font-size: 1rem;
+      line-height: 1.4;
+      letter-spacing: 0;
+    }
+
+    .section {
+      margin-top: 16px;
+    }
+
+    .section h2 {
+      margin: 0 0 14px;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--text);
+      line-height: 1.8;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: 16px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      background: rgba(15, 23, 42, 0.45);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    code {
+      color: #bae6fd;
+      background: rgba(56, 189, 248, 0.09);
+      border: 1px solid rgba(56, 189, 248, 0.16);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hero,
+      .two-col {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 560px) {
+      body {
+        padding: 18px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        border-radius: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="title-block">
+        <h1>QA Agent Dashboard</h1>
+        <p>
+          Automated quality snapshot generated from repository analysis, Git changed files,
+          deterministic branch analysis, test execution and optional mutation testing.
+        </p>
+      </div>
+      <div class="status-pill ${statusClass}">${escapeHtml(status)}</div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <div class="metric-label">Language</div>
+        <div class="metric-value">${escapeHtml(dashboard.language)}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Functions analysed</div>
+        <div class="metric-value">${escapeHtml(dashboard.deterministicSummary?.totalFunctions ?? 0)}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Coverage targets</div>
+        <div class="metric-value">${escapeHtml(dashboard.deterministicSummary?.totalCoverageTargets ?? 0)}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Mutation score</div>
+        <div class="metric-value">${escapeHtml(mutationScore)}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Project type</div>
+        <div class="metric-value small">${escapeHtml(formatDashboardValue(dashboard.projectTypes))}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Test command</div>
+        <div class="metric-value small"><code>${escapeHtml(dashboard.testCommand)}</code></div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Test duration</div>
+        <div class="metric-value">${escapeHtml(testDuration)}</div>
+      </div>
+
+      <div class="card">
+        <div class="metric-label">Mutation status</div>
+        <div class="metric-value small">${escapeHtml(mutationStatus)}</div>
+      </div>
+    </section>
+
+    <section class="two-col section">
+      <div class="card">
+        <h2>Git changed source files</h2>
+        <ul>
+          ${listItems(changedSourceFiles)}
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Target files</h2>
+        <ul>
+          ${listItems(targetFiles)}
+        </ul>
+      </div>
+    </section>
+
+    <section class="two-col section">
+      <div class="card">
+        <h2>Focused files</h2>
+        <ul>
+          ${listItems(focusedFiles)}
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Run metadata</h2>
+        <table>
+          <tr>
+            <th>Field</th>
+            <th>Value</th>
+          </tr>
+          <tr>
+            <td>Generated at</td>
+            <td>${escapeHtml(dashboard.generatedAt)}</td>
+          </tr>
+          <tr>
+            <td>Repository path</td>
+            <td>${escapeHtml(dashboard.repoPath)}</td>
+          </tr>
+          <tr>
+            <td>Primary language key</td>
+            <td>${escapeHtml(dashboard.primaryLanguage)}</td>
+          </tr>
+          <tr>
+            <td>Generated test file</td>
+            <td>${escapeHtml(dashboard.generatedTestFile)}</td>
+          </tr>
+          <tr>
+            <td>Git detected</td>
+            <td>${escapeHtml(formatDashboardValue(dashboard.git?.available))}</td>
+          </tr>
+          <tr>
+            <td>Target selection</td>
+            <td>${escapeHtml(dashboard.focusedModel?.targetSelection)}</td>
+          </tr>
+        </table>
+      </div>
+    </section>
+
+    <section class="card section">
+      <h2>High complexity functions</h2>
+      <table>
+        <tr>
+          <th>File</th>
+          <th>Function</th>
+          <th>Complexity</th>
+        </tr>
+        ${highComplexityRows}
+      </table>
+    </section>
+
+    <div class="footer">
+      Generated by QA Agent · JSON source: <code>qa-dashboard.json</code>
+    </div>
+  </main>
+</body>
+</html>`;
+
+  fs.writeFileSync(path.join(repoPath, "qa-dashboard.html"), html);
+}
+
 function writeDashboard(repoAnalysis, focusedModel, testResult = null, mutationResult = null) {
   const dashboard = {
     generatedAt: new Date().toISOString(),
@@ -1588,6 +2021,8 @@ function writeDashboard(repoAnalysis, focusedModel, testResult = null, mutationR
     path.join(repoPath, "qa-dashboard.json"),
     JSON.stringify(dashboard, null, 2)
   );
+
+  writeHtmlDashboard(dashboard);
 }
 
 function writeRepositoryAnalysis(repoAnalysis, focusedModel) {
