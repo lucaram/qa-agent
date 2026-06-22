@@ -1,0 +1,14 @@
+@"
+.env
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.qa-agent-backups/
+.qa-agent-sandbox/
+qa-dashboard.json
+qa-benchmark.json
+mutation-report.md
+qa-report.md
+repository-analysis.md
+"@ | Out-File -Encoding utf8 .gitignore
