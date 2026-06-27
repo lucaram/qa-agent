@@ -5,10 +5,13 @@ import path from "path";
 import crypto from "crypto";
 
 import RepositoryAgent from "./src/agents/RepositoryAgent.js";
+import DependencyAgent from "./src/agents/DependencyAgent.js";
+import PlanningAgent from "./src/agents/PlanningAgent.js";
 import BenchmarkAgent from "./src/agents/BenchmarkAgent.js";
 import MutationAgent from "./src/agents/MutationAgent.js";
 import TestAgent from "./src/agents/TestAgent.js";
 import FixAgent from "./src/agents/FixAgent.js";
+import OutputAgent from "./src/agents/OutputAgent.js";
 
 import { safeJoin, toPosix } from "./src/utils/pathUtils.js";
 import { writeRepositoryAnalysis } from "./src/reporting/repositoryReportWriter.js";
@@ -196,6 +199,10 @@ function filterDeterministicAnalysisForFocusedFiles(repoAnalysis, focusedFiles) 
   };
 }
 
+function shouldExcludeFromFocusedContext(file) {
+  return file === "QA-Agent" || file.startsWith("QA-Agent/");
+}
+
 function buildFocusedContext(repoAnalysis) {
   activateAutoChangedModeIfUseful(repoAnalysis);
 
@@ -220,7 +227,11 @@ function buildFocusedContext(repoAnalysis) {
         (file) => file !== repoAnalysis.generatedTestFile
       )
     ])
-  ].filter((file) => fs.existsSync(path.join(repoPath, file)));
+  ].filter(
+    (file) =>
+      !shouldExcludeFromFocusedContext(file) &&
+      fs.existsSync(path.join(repoPath, file))
+  );
 
   const focusedDeterministicAnalysis =
     filterDeterministicAnalysisForFocusedFiles(repoAnalysis, focusedFiles);
@@ -750,6 +761,55 @@ function printRepositorySummary(repoAnalysis, focusedModel) {
   }
 }
 
+function logDependencyResult(dependencyResult) {
+  console.log("✅ Dependency check completed.");
+
+  if (dependencyResult.createdFiles.length > 0) {
+    console.log("Created dependency files:");
+    for (const file of dependencyResult.createdFiles) {
+      console.log(`- ${file}`);
+    }
+  }
+
+  if (dependencyResult.updatedFiles.length > 0) {
+    console.log("Updated dependency files:");
+    for (const file of dependencyResult.updatedFiles) {
+      console.log(`- ${file}`);
+    }
+  }
+
+  if (dependencyResult.recommendations.length > 0) {
+    console.log("Dependency recommendations:");
+    for (const recommendation of dependencyResult.recommendations) {
+      console.log(`- ${recommendation}`);
+    }
+  }
+
+  if (
+    dependencyResult.createdFiles.length === 0 &&
+    dependencyResult.updatedFiles.length === 0 &&
+    dependencyResult.recommendations.length === 0
+  ) {
+    console.log("No dependency changes required.");
+  }
+}
+
+function runOutputAgent(repoAnalysis, dependencyResult) {
+  console.log("\n📦 Consolidating QA Agent outputs...");
+
+  const outputAgent = new OutputAgent(repoPath);
+  const outputResult = outputAgent.run({
+    repoAnalysis,
+    dependencyResult
+  });
+
+  console.log("✅ QA-Agent output folder created/updated.");
+  console.log(`Output folder: ${outputResult.outputPath}`);
+  console.log(`Dependencies folder: ${outputResult.dependenciesPath}`);
+
+  return outputResult;
+}
+
 function hashContent(value) {
   return crypto.createHash("sha256").update(value || "").digest("hex");
 }
@@ -760,6 +820,7 @@ async function runGeneratedTestsWithRepair({
   focusedModel,
   projectContext,
   initialTestCode,
+  qaPlan = null,
   maxRepairAttempts = 50
 }) {
   let currentTestCode = initialTestCode;
@@ -792,7 +853,8 @@ async function runGeneratedTestsWithRepair({
       focusedModel,
       projectContext,
       generatedTestCode: currentTestCode,
-      testResult
+      testResult,
+      qaPlan
     });
 
     const repairedHash = hashContent(repairedTestCode);
@@ -830,10 +892,34 @@ async function runGeneratedTestsWithRepair({
   };
 }
 
+function buildPlanningEnhancedContext(projectContext, qaPlan) {
+  return `${projectContext}
+
+===== QA PLANNING REPORT =====
+${JSON.stringify(qaPlan, null, 2)}
+`;
+}
+
 async function main() {
   console.log("🔎 Analysing repository...");
 
   let repoAnalysis = analyseRepository();
+
+  console.log("\n📦 Checking test dependencies...");
+
+  const dependencyAgent = new DependencyAgent(repoPath, readFileSafe);
+  const dependencyResult = dependencyAgent.run(repoAnalysis);
+
+  logDependencyResult(dependencyResult);
+
+  if (
+    dependencyResult.createdFiles.length > 0 ||
+    dependencyResult.updatedFiles.length > 0
+  ) {
+    console.log("\n🔎 Re-analysing repository after dependency updates...");
+    repoAnalysis = analyseRepository();
+  }
+
   let { projectContext, focusedModel } = buildFocusedContext(repoAnalysis);
 
   writeRepositoryAnalysis(repoPath, repoAnalysis, focusedModel);
@@ -848,6 +934,22 @@ async function main() {
     initialiseGitHubActions(repoAnalysis);
   }
 
+  console.log("\n🧠 Creating QA test plan...");
+
+  const planningAgent = new PlanningAgent(repoPath, client);
+
+  const qaPlan = await planningAgent.createPlan({
+    repoAnalysis,
+    focusedModel,
+    projectContext
+  });
+
+  planningAgent.writePlanningReport(qaPlan);
+
+  projectContext = buildPlanningEnhancedContext(projectContext, qaPlan);
+
+  console.log("✅ planning-report.md created.");
+
   console.log("\nGenerating tests...");
 
   const testAgent = new TestAgent(repoPath, client, readFileSafe);
@@ -855,7 +957,8 @@ async function main() {
   const testCode = await testAgent.generateTests({
     repoAnalysis,
     focusedModel,
-    projectContext
+    projectContext,
+    qaPlan
   });
 
   const generatedTest = testAgent.writeGeneratedTests(repoAnalysis, testCode);
@@ -869,6 +972,7 @@ async function main() {
     focusedModel,
     projectContext,
     initialTestCode: testCode,
+    qaPlan,
     maxRepairAttempts: 50
   });
 
@@ -925,6 +1029,8 @@ async function main() {
 
     console.log("✅ All tests passed. No QA defects detected.");
     console.log("✅ qa-report.md updated.");
+
+    runOutputAgent(repoAnalysis, dependencyResult);
     process.exit(0);
   }
 
@@ -943,6 +1049,8 @@ async function main() {
     console.log("\nℹ️ Fix mode not enabled.");
     console.log("Run this to allow the agent to fix the code:");
     console.log(`node agent.js ${repoPath} --fix`);
+
+    runOutputAgent(repoAnalysis, dependencyResult);
     process.exit(1);
   }
 
@@ -1014,6 +1122,8 @@ ${testResult.output}
 
   fs.writeFileSync(path.join(repoPath, "qa-report.md"), finalReport);
   console.log("✅ qa-report.md updated with fix result.");
+
+  runOutputAgent(repoAnalysis, dependencyResult);
 
   if (testResult.passed) {
     console.log("✅ Auto-fix successful. All tests now pass.");

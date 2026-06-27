@@ -1,0 +1,37 @@
+{
+  "generatedAt": "2026-06-27T23:01:44.910Z",
+  "outputFolder": "QA-Agent",
+  "dependenciesFolder": "QA-Agent/dependencies",
+  "otherGeneratedFilesFolder": "QA-Agent/other-generated-files",
+  "language": "JavaScript / Node",
+  "primaryLanguage": "javascript",
+  "testCommand": "npm test",
+  "generatedTestFile": "test.js",
+  "movedPrimaryOutputs": [
+    "qa-dashboard.html",
+    "planning-report.md",
+    "test.js"
+  ],
+  "movedOtherGeneratedFiles": [
+    "mutation-report.md",
+    "qa-benchmark.json",
+    "qa-dashboard.json",
+    "qa-report.md",
+    "repository-analysis.md"
+  ],
+  "copiedDependencies": [
+    "package.json"
+  ],
+  "movedDependencies": [],
+  "movedRuntimeArtifacts": [],
+  "dependencyAgent": {
+    "generatedAt": "2026-06-27T23:01:03.471Z",
+    "primaryLanguage": "javascript",
+    "createdFiles": [],
+    "updatedFiles": [],
+    "skipped": [
+      "package.json already exists; not overwritten."
+    ],
+    "recommendations": []
+  }
+}

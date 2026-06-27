@@ -1,0 +1,43 @@
+{
+  "generatedAt": "2026-06-27T17:50:20.631Z",
+  "outputFolder": "QA-Agent",
+  "dependenciesFolder": "QA-Agent/dependencies",
+  "otherGeneratedFilesFolder": "QA-Agent/other-generated-files",
+  "language": "Python",
+  "primaryLanguage": "python",
+  "testCommand": "python -m pytest",
+  "generatedTestFile": "test_agent_generated.py",
+  "movedPrimaryOutputs": [
+    "qa-dashboard.html",
+    "planning-report.md",
+    "test_agent_generated.py"
+  ],
+  "movedOtherGeneratedFiles": [
+    "mutation-report.md",
+    "qa-benchmark.json",
+    "qa-dashboard.json",
+    "qa-report.md",
+    "repository-analysis.md"
+  ],
+  "copiedDependencies": [
+    "__pycache__",
+    ".pytest_cache"
+  ],
+  "movedDependencies": [
+    "requirements.txt"
+  ],
+  "movedRuntimeArtifacts": [
+    "__pycache__",
+    ".pytest_cache"
+  ],
+  "dependencyAgent": {
+    "generatedAt": "2026-06-27T17:49:52.474Z",
+    "primaryLanguage": "python",
+    "createdFiles": [
+      "requirements.txt"
+    ],
+    "updatedFiles": [],
+    "skipped": [],
+    "recommendations": []
+  }
+}

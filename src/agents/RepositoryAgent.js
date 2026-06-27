@@ -40,6 +40,16 @@ export default class RepositoryAgent {
     return fs.readFileSync(safeJoin(this.repoPath, relativePath), "utf8");
   }
 
+  shouldIgnoreFile(file) {
+    const normalised = toPosix(file);
+
+    return (
+      normalised === "QA-Agent" ||
+      normalised.startsWith("QA-Agent/") ||
+      normalised.includes("/QA-Agent/")
+    );
+  }
+
   resolveImport(fromFile, importPath) {
     if (!importPath.startsWith(".")) return null;
 
@@ -107,7 +117,9 @@ export default class RepositoryAgent {
     const scanner = new FileScanner(this.repoPath);
     const astParser = new AstParser();
 
-    const allFiles = scanner.scanFiles();
+        const allFiles = scanner
+      .scanFiles()
+      .filter((file) => !this.shouldIgnoreFile(file));
 
     const sourceFiles = allFiles.filter((file) =>
       ALL_SOURCE_EXTENSIONS.has(path.extname(file))
