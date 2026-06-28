@@ -310,24 +310,47 @@ Return ONLY valid JSON with this structure:
   }
 
   generateDeterministicTestExamples(plan, context) {
-    const examples = [];
+  const examples = [];
 
-    for (const api of plan.publicApis) {
-      if (!api?.name || api.name === "unknown") continue;
+  for (const api of plan.publicApis) {
+    if (!api?.name || api.name === "unknown") continue;
 
-      const model = this.extractFunctionModel(api.name, context);
-      if (!model) continue;
 
-      const returnExample = this.tryBuildReturnExampleFromFunctionModel(api, model, context);
-      if (returnExample) examples.push(returnExample);
 
-      examples.push(...this.tryBuildValidationExamples(api, model, context));
+    const model = this.extractFunctionModel(api.name, context);
+
+    if (!model) {
+      
+      continue;
     }
 
-    return this.dedupeExamples(examples).map((example) =>
-      this.normaliseTestExamples([example])[0]
+   
+
+    const returnExample = this.tryBuildReturnExampleFromFunctionModel(
+      api,
+      model,
+      context
     );
+
+    if (returnExample) {
+      
+      examples.push(returnExample);
+    } else {
+     
+    }
+
+    const validationExamples =
+      this.tryBuildValidationExamples(api, model, context);
+
+
+
+    examples.push(...validationExamples);
   }
+
+  return this.dedupeExamples(examples).map((example) =>
+    this.normaliseTestExamples([example])[0]
+  );
+}
 
 normaliseFunctionParameters(rawParams = []) {
   const params = [];
@@ -779,7 +802,267 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   return { failed: false, returned: false };
 }
 
+populateEnvAliasesFromObjects(env) {
+  if (!env || typeof env !== "object") {
+    return env;
+  }
+
+  for (const [rootName, value] of Object.entries(env)) {
+    if (
+      !value ||
+      typeof value !== "object" ||
+      Array.isArray(value)
+    ) {
+      continue;
+    }
+
+    for (const [propertyName, propertyValue] of Object.entries(value)) {
+      if (env[propertyName] === undefined) {
+        env[propertyName] = propertyValue;
+      }
+    }
+  }
+
+  return env;
+}
+
+evaluateExecutableStatement(statement, env, context, stack, steps) {
+  if (!statement) {
+    return null;
+  }
+
+  if (statement.type === "assignment") {
+    const result = this.evaluateExpression(
+      statement.expression,
+      env,
+      context,
+      stack
+    );
+
+    if (!result.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: result.reason,
+          steps
+        }
+      };
+    }
+
+    env[statement.name] = result.value;
+    this.populateEnvAliasesFromObjects(env);
+
+    steps.push(`${statement.name} = ${result.description}`);
+    return null;
+  }
+
+  if (statement.type === "expression") {
+    const result = this.evaluateExpression(
+      statement.expression,
+      env,
+      context,
+      stack
+    );
+
+    if (!result.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: result.reason,
+          steps
+        }
+      };
+    }
+
+    this.populateEnvAliasesFromObjects(env);
+
+    steps.push(`expression ${statement.expression} = ${result.description}`);
+    return null;
+  }
+
+  if (statement.type === "if-throw") {
+    this.populateEnvAliasesFromObjects(env);
+
+    const condition = this.evaluateBooleanCondition(statement.condition, env);
+
+    if (!condition.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: `Could not evaluate throw guard: ${statement.condition}: ${condition.reason || ""}`,
+          steps
+        }
+      };
+    }
+
+    steps.push(`throw guard ${statement.condition} = ${condition.value}`);
+
+    if (condition.value === true) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: `Input hits throw path: ${statement.condition}`,
+          steps
+        }
+      };
+    }
+
+    return null;
+  }
+
+  if (statement.type === "if-return") {
+    this.populateEnvAliasesFromObjects(env);
+
+    const condition = this.evaluateBooleanCondition(statement.condition, env);
+
+    if (!condition.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: `Could not evaluate return guard: ${statement.condition}: ${condition.reason || ""}`,
+          steps
+        }
+      };
+    }
+
+    steps.push(`guard ${statement.condition} = ${condition.value}`);
+
+    if (condition.value !== true) {
+      return null;
+    }
+
+    this.populateEnvAliasesFromObjects(env);
+
+    const returnResult = this.evaluateExpression(
+      statement.returnExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!returnResult.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: returnResult.reason,
+          steps
+        }
+      };
+    }
+
+    steps.push(`result = ${returnResult.description}`);
+
+    return {
+      returned: true,
+      result: {
+        success: true,
+        value: returnResult.value,
+        steps
+      }
+    };
+  }
+
+  if (statement.type === "if-branch") {
+    this.populateEnvAliasesFromObjects(env);
+
+    const condition = this.evaluateBooleanCondition(statement.condition, env);
+
+    if (!condition.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: `Could not evaluate branch guard: ${statement.condition}: ${condition.reason || ""}`,
+          steps
+        }
+      };
+    }
+
+    steps.push(`branch ${statement.condition} = ${condition.value}`);
+
+    if (condition.value !== true) {
+      return null;
+    }
+
+    for (const nestedStatement of statement.statements || []) {
+      const nestedResult = this.evaluateExecutableStatement(
+        nestedStatement,
+        env,
+        context,
+        stack,
+        steps
+      );
+
+      if (nestedResult?.returned || nestedResult?.failed) {
+        return nestedResult;
+      }
+    }
+
+    return null;
+  }
+
+  if (statement.type === "throw") {
+    return {
+      failed: true,
+      result: {
+        success: false,
+        reason: `Input hits throw path: ${statement.message || "Error"}`,
+        steps
+      }
+    };
+  }
+
+  if (statement.type === "return") {
+    this.populateEnvAliasesFromObjects(env);
+
+    const returnResult = this.evaluateExpression(
+      statement.expression,
+      env,
+      context,
+      stack
+    );
+
+    if (!returnResult.success) {
+      return {
+        failed: true,
+        result: {
+          success: false,
+          reason: returnResult.reason,
+          steps
+        }
+      };
+    }
+
+    steps.push(`result = ${returnResult.description}`);
+
+    return {
+      returned: true,
+      result: {
+        success: true,
+        value: returnResult.value,
+        steps
+      }
+    };
+  }
+
+  return null;
+}
+
   evaluateFunctionModel(model, inputEnv, context, stack) {
+  if (!model?.name) {
+    return {
+      success: false,
+      reason: "Function model is missing a name.",
+      steps: []
+    };
+  }
+
   if (stack.has(model.name)) {
     return {
       success: false,
@@ -791,8 +1074,9 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   stack.add(model.name);
 
   const env = { ...inputEnv };
-  const steps = [];
+  this.populateEnvAliasesFromObjects(env);
 
+  const steps = [];
   const statements = this.extractExecutableStatements(model.body);
 
   if (statements.length === 0) {
@@ -806,189 +1090,17 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   }
 
   for (const statement of statements) {
-    if (statement.type === "assignment") {
-      const result = this.evaluateExpression(
-        statement.expression,
-        env,
-        context,
-        stack
-      );
+    const result = this.evaluateExecutableStatement(
+      statement,
+      env,
+      context,
+      stack,
+      steps
+    );
 
-      if (!result.success) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: result.reason,
-          steps
-        };
-      }
-
-      env[statement.name] = result.value;
-      steps.push(`${statement.name} = ${result.description}`);
-      continue;
-    }
-
-    if (statement.type === "expression") {
-      const result = this.evaluateExpression(
-        statement.expression,
-        env,
-        context,
-        stack
-      );
-
-      if (!result.success) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: result.reason,
-          steps
-        };
-      }
-
-      steps.push(`expression ${statement.expression} = ${result.description}`);
-      continue;
-    }
-
-    if (statement.type === "if-return") {
-      const condition = this.evaluateBooleanCondition(statement.condition, env);
-
-      if (!condition.success) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: `Could not evaluate return guard: ${statement.condition}`,
-          steps
-        };
-      }
-
-      steps.push(`guard ${statement.condition} = ${condition.value}`);
-
-      if (condition.value === true) {
-        const returnResult = this.evaluateExpression(
-          statement.returnExpression,
-          env,
-          context,
-          stack
-        );
-
-        stack.delete(model.name);
-
-        if (!returnResult.success) {
-          return {
-            success: false,
-            reason: returnResult.reason,
-            steps
-          };
-        }
-
-        steps.push(`result = ${returnResult.description}`);
-
-        return {
-          success: true,
-          value: returnResult.value,
-          steps
-        };
-      }
-
-      continue;
-    }
-
-    if (statement.type === "if-throw") {
-      const condition = this.evaluateBooleanCondition(statement.condition, env);
-
-      if (!condition.success) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: `Could not evaluate throw guard: ${statement.condition}`,
-          steps
-        };
-      }
-
-      steps.push(`throw guard ${statement.condition} = ${condition.value}`);
-
-      if (condition.value === true) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: `Input hits throw path: ${statement.condition}`,
-          steps
-        };
-      }
-
-      continue;
-    }
-
-    if (statement.type === "if-branch") {
-      const condition = this.evaluateBooleanCondition(statement.condition, env);
-
-      if (!condition.success) {
-        stack.delete(model.name);
-
-        return {
-          success: false,
-          reason: `Could not evaluate branch guard: ${statement.condition}`,
-          steps
-        };
-      }
-
-      steps.push(`branch ${statement.condition} = ${condition.value}`);
-
-      if (condition.value === true) {
-        for (const nestedStatement of statement.statements) {
-          const nestedResult = this.evaluateNestedStatement(
-            nestedStatement,
-            env,
-            context,
-            stack,
-            steps
-          );
-
-          if (nestedResult?.returned) {
-            stack.delete(model.name);
-            return nestedResult.result;
-          }
-
-          if (nestedResult?.failed) {
-            stack.delete(model.name);
-            return nestedResult.result;
-          }
-        }
-      }
-
-      continue;
-    }
-
-    if (statement.type === "return") {
-      const returnResult = this.evaluateExpression(
-        statement.expression,
-        env,
-        context,
-        stack
-      );
-
+    if (result?.returned || result?.failed) {
       stack.delete(model.name);
-
-      if (!returnResult.success) {
-        return {
-          success: false,
-          reason: returnResult.reason,
-          steps
-        };
-      }
-
-      steps.push(`result = ${returnResult.description}`);
-
-      return {
-        success: true,
-        value: returnResult.value,
-        steps
-      };
+      return result.result;
     }
   }
 
@@ -1001,6 +1113,172 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   };
 }
 
+evaluateLogicalExpression(expression, env, context, stack) {
+  const expr = String(expression || "").trim();
+
+  const orIndex = this.findTopLevelLogicalOperator(expr, "||");
+
+  if (orIndex !== -1) {
+    const leftExpression = expr.slice(0, orIndex).trim();
+    const rightExpression = expr.slice(orIndex + 2).trim();
+
+    const left = this.evaluateExpression(
+      leftExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!left.success) {
+      return left;
+    }
+
+    if (left.value) {
+      return {
+        success: true,
+        value: left.value,
+        description: `${expr} = ${this.formatValueForDescription(left.value)}`
+      };
+    }
+
+    const right = this.evaluateExpression(
+      rightExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!right.success) {
+      return right;
+    }
+
+    return {
+      success: true,
+      value: right.value,
+      description: `${expr} = ${this.formatValueForDescription(right.value)}`
+    };
+  }
+
+  const andIndex = this.findTopLevelLogicalOperator(expr, "&&");
+
+  if (andIndex !== -1) {
+    const leftExpression = expr.slice(0, andIndex).trim();
+    const rightExpression = expr.slice(andIndex + 2).trim();
+
+    const left = this.evaluateExpression(
+      leftExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!left.success) {
+      return left;
+    }
+
+    if (!left.value) {
+      return {
+        success: true,
+        value: left.value,
+        description: `${expr} = ${this.formatValueForDescription(left.value)}`
+      };
+    }
+
+    const right = this.evaluateExpression(
+      rightExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!right.success) {
+      return right;
+    }
+
+    return {
+      success: true,
+      value: right.value,
+      description: `${expr} = ${this.formatValueForDescription(right.value)}`
+    };
+  }
+
+  return {
+    success: false
+  };
+}
+
+findTopLevelLogicalOperator(expression, operator) {
+  const text = String(expression || "");
+
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let quote = null;
+
+  for (let i = 0; i <= text.length - operator.length; i++) {
+    const char = text[i];
+
+    if (quote) {
+      if (char === "\\") {
+        i++;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (char === "'" || char === `"` || char === "`") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth++;
+      continue;
+    }
+
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+
+    if (char === "{") {
+      braceDepth++;
+      continue;
+    }
+
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+
+    if (char === "[") {
+      bracketDepth++;
+      continue;
+    }
+
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (
+      parenDepth === 0 &&
+      braceDepth === 0 &&
+      bracketDepth === 0 &&
+      text.slice(i, i + operator.length) === operator
+    ) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
   evaluateExpression(expression, env, context, stack = new Set()) {
   const expr = String(expression ?? "").trim();
 
@@ -1011,16 +1289,26 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     };
   }
 
+  const logicalResult = this.evaluateLogicalExpression(
+    expr,
+    env,
+    context,
+    stack
+  );
+
+  if (logicalResult.success) {
+    return logicalResult;
+  }
+
   const evaluators = [
-    () => this.evaluateConditionalExpression(expr, env, context, stack),
     () => this.evaluateObjectExpression(expr, env, context, stack),
+    () => this.evaluateStringConstructorExpression(expr, env, context, stack),
     () => this.evaluateMemberExpression(expr, env),
     () => this.evaluateStringExpression(expr),
     () => this.evaluateBooleanLiteralExpression(expr),
     () => this.evaluateReduceExpression(expr, env, context, stack),
     () => this.evaluateFunctionCallExpression(expr, env, context, stack),
 
-    // Resolve variables before trying arithmetic.
     () => {
       const resolved = this.resolveValue(expr, env);
 
@@ -1039,6 +1327,7 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     },
 
     () => this.evaluateArithmeticExpression(expr, env),
+    () => this.evaluateConditionalExpression(expr, env, context, stack),
     () => this.evaluateLiteralExpression(expr)
   ];
 
@@ -1113,10 +1402,178 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     };
   }
 
-  evaluateFunctionCallExpression(expression, env, context, stack) {
+evaluateMathCallExpression(expression, env, context, stack) {
   const match = String(expression || "")
     .trim()
-    .match(/^([A-Za-z_$][\w$]*)\s*\(([\s\S]*)\)$/);
+    .match(/^Math\.(max|min|round|floor|ceil|abs)\s*\(([\s\S]*)\)$/);
+
+  if (!match) {
+    return { success: false };
+  }
+
+  const method = match[1];
+  const argExpressions = this.splitTopLevelArguments(match[2]);
+  const values = [];
+
+  for (const argExpression of argExpressions) {
+    const evaluated = this.evaluateExpression(
+      argExpression,
+      env,
+      context,
+      stack
+    );
+
+    if (!evaluated.success) {
+      return {
+        success: false,
+        reason: `Could not evaluate Math.${method} argument: ${argExpression}`
+      };
+    }
+
+    if (typeof evaluated.value !== "number") {
+      return {
+        success: false,
+        reason: `Math.${method} argument did not evaluate to a number: ${argExpression}`
+      };
+    }
+
+    values.push(evaluated.value);
+  }
+
+  const value = Math[method](...values);
+
+  return {
+    success: true,
+    value,
+    description: `Math.${method}(${values.join(", ")}) = ${value}`
+  };
+}
+
+parseStringConstructorExpression(expression) {
+  const expr = String(expression || "").trim();
+
+  if (!expr.startsWith("String")) {
+    return null;
+  }
+
+  const openParenIndex = expr.indexOf("(");
+
+  if (openParenIndex === -1) {
+    return null;
+  }
+
+  const closeParenIndex = this.findMatchingParen(expr, openParenIndex);
+
+  if (closeParenIndex === -1) {
+    return null;
+  }
+
+  const inner = expr
+    .slice(openParenIndex + 1, closeParenIndex)
+    .trim();
+
+  const suffix = expr
+    .slice(closeParenIndex + 1)
+    .trim();
+
+  if (!suffix) {
+    return {
+      inner,
+      transform: null
+    };
+  }
+
+  if (/^\.toUpperCase\s*\(\s*\)$/.test(suffix)) {
+    return {
+      inner,
+      transform: "upper"
+    };
+  }
+
+  if (/^\.toLowerCase\s*\(\s*\)$/.test(suffix)) {
+    return {
+      inner,
+      transform: "lower"
+    };
+  }
+
+  return null;
+}
+
+evaluateStringConstructorExpression(expression, env, context, stack) {
+  const expr = String(expression || "").trim();
+
+  const parsed = this.parseStringConstructorExpression(expr);
+
+  if (!parsed) {
+    return {
+      success: false
+    };
+  }
+
+  const evaluated = this.evaluateExpression(
+    parsed.inner,
+    env,
+    context,
+    stack
+  );
+
+  if (!evaluated?.success) {
+    return {
+      success: false,
+      reason: `Could not evaluate String(...) argument: ${parsed.inner}`
+    };
+  }
+
+  let rawValue = evaluated.value;
+
+  // Preserve null/undefined semantics of String(...)
+  if (rawValue === undefined) {
+    rawValue = undefined;
+  } else if (rawValue === null) {
+    rawValue = null;
+  }
+
+  let value = String(rawValue);
+
+  switch (parsed.transform) {
+    case "upper":
+      value = value.toUpperCase();
+      break;
+
+    case "lower":
+      value = value.toLowerCase();
+      break;
+  }
+
+  return {
+    success: true,
+    value,
+    description: `${expr} = ${JSON.stringify(value)}`
+  };
+}
+
+  evaluateFunctionCallExpression(expression, env, context, stack = new Set()) {
+  const expr = String(expression || "").trim();
+
+  const stringResult = this.evaluateStringConstructorExpression(expr, env, context, stack);
+
+  if (stringResult.success) {
+    return stringResult;
+  }
+
+  const mathResult = this.evaluateMathCallExpression(
+    expr,
+    env,
+    context,
+    stack
+  );
+
+  if (mathResult.success) {
+    return mathResult;
+  }
+
+  const match = expr.match(/^([A-Za-z_$][\w$]*)\s*\(([\s\S]*)\)$/);
 
   if (!match) {
     return { success: false };
@@ -1125,13 +1582,9 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   const functionName = match[1];
   const argExpressions = this.splitTopLevelArguments(match[2]);
 
-  console.log(`\n[DET] Calling ${functionName}(${argExpressions.join(", ")})`);
-
   const functionModel = this.extractFunctionModel(functionName, context);
 
   if (!functionModel) {
-    console.log(`[DET] ❌ Function model not found: ${functionName}`);
-
     return {
       success: false,
       reason: `Function model not found for ${functionName}.`
@@ -1139,8 +1592,6 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   }
 
   if (stack.has(functionName)) {
-    console.log(`[DET] ❌ Recursive call detected: ${functionName}`);
-
     return {
       success: false,
       reason: `Recursive call detected: ${functionName}`
@@ -1148,11 +1599,7 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   }
 
   const childEnv = {};
-
-  const paramCount = Math.max(
-    functionModel.params.length,
-    argExpressions.length
-  );
+  const paramCount = Math.max(functionModel.params.length, argExpressions.length);
 
   for (let i = 0; i < paramCount; i++) {
     const param = functionModel.params[i];
@@ -1165,17 +1612,8 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     if (argExpression === undefined) {
       if (env[param] !== undefined) {
         childEnv[param] = env[param];
-
-        console.log(
-          `[DET]   ${param} <- inherited ${JSON.stringify(childEnv[param])}`
-        );
-
         continue;
       }
-
-      console.log(
-        `[DET] ❌ Missing argument ${i + 1} for ${functionName}`
-      );
 
       return {
         success: false,
@@ -1192,30 +1630,13 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
 
     if (evaluated.success) {
       childEnv[param] = evaluated.value;
-
-      console.log(
-        `[DET]   ${param} = ${argExpression} ->`,
-        evaluated.value
-      );
-
       continue;
     }
-
-    console.log(
-      `[DET]   evaluateExpression FAILED for "${argExpression}"`,
-      evaluated.reason
-    );
 
     const resolved = this.resolveValue(argExpression, env);
 
     if (resolved !== undefined) {
       childEnv[param] = resolved;
-
-      console.log(
-        `[DET]   ${param} resolved from env ->`,
-        resolved
-      );
-
       continue;
     }
 
@@ -1223,18 +1644,8 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
 
     if (literal.success) {
       childEnv[param] = literal.value;
-
-      console.log(
-        `[DET]   ${param} literal ->`,
-        literal.value
-      );
-
       continue;
     }
-
-    console.log(
-      `[DET] ❌ Could not evaluate argument "${argExpression}" for ${functionName}`
-    );
 
     return {
       success: false,
@@ -1242,12 +1653,8 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     };
   }
 
-  //
-  // Rebuild destructured parameters
-  //
   if (Array.isArray(functionModel.destructuredParams)) {
     for (const descriptor of functionModel.destructuredParams) {
-
       if (descriptor.type === "object") {
         const object = {};
 
@@ -1260,11 +1667,6 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
         }
 
         childEnv[descriptor.syntheticName] = object;
-
-        console.log(
-          `[DET]   rebuilt object ${descriptor.syntheticName}:`,
-          object
-        );
       }
 
       if (descriptor.type === "array") {
@@ -1280,16 +1682,9 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
         }
 
         childEnv[descriptor.syntheticName] = array;
-
-        console.log(
-          `[DET]   rebuilt array ${descriptor.syntheticName}:`,
-          array
-        );
       }
     }
   }
-
-  console.log(`[DET] Executing ${functionName} with env:`, childEnv);
 
   const result = this.evaluateFunctionModel(
     functionModel,
@@ -1299,18 +1694,8 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   );
 
   if (!result.success) {
-    console.log(
-      `[DET] ❌ ${functionName} FAILED:`,
-      result.reason
-    );
-
     return result;
   }
-
-  console.log(
-    `[DET] ✅ ${functionName} returned:`,
-    result.value
-  );
 
   return {
     success: true,
@@ -1320,38 +1705,58 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
 }
 
   evaluateArithmeticExpression(expression, env) {
-    const expr = String(expression || "").trim();
-    const resolvedExpression = this.replaceIdentifiersWithValues(expr, env);
+  const expr = String(expression || "").trim();
 
-    if (!/^[\d\s.+\-*/()%]+$/.test(resolvedExpression)) {
-      return {
-        success: false,
-        reason: `Expression contains unsupported tokens after resolution: ${resolvedExpression}`
-      };
-    }
-
-    try {
-      const value = Function(`"use strict"; return (${resolvedExpression});`)();
-
-      if (typeof value !== "number" || Number.isNaN(value)) {
-        return {
-          success: false,
-          reason: "Expression did not evaluate to a valid number."
-        };
-      }
-
-      return {
-        success: true,
-        value,
-        description: `${expr} = ${resolvedExpression} = ${value}`
-      };
-    } catch {
-      return {
-        success: false,
-        reason: `Could not evaluate expression: ${expr}`
-      };
-    }
+  if (!expr) {
+    return {
+      success: false,
+      reason: "Empty arithmetic expression."
+    };
   }
+
+  const resolvedExpression = this.replaceIdentifiersWithValues(expr, env);
+
+  if (
+    !/^[\d\s.+\-*/()%<>=!&|?:]+$/.test(resolvedExpression)
+  ) {
+    return {
+      success: false,
+      reason: `Expression contains unsupported tokens after resolution: ${resolvedExpression}`
+    };
+  }
+
+  try {
+    const value = Function(`"use strict"; return (${resolvedExpression});`)();
+
+    if (
+      typeof value !== "number" &&
+      typeof value !== "boolean"
+    ) {
+      return {
+        success: false,
+        reason: "Expression did not evaluate to a number or boolean."
+      };
+    }
+
+    if (typeof value === "number" && Number.isNaN(value)) {
+      return {
+        success: false,
+        reason: "Expression evaluated to NaN."
+      };
+    }
+
+    return {
+      success: true,
+      value,
+      description: `${expr} = ${resolvedExpression} = ${value}`
+    };
+  } catch {
+    return {
+      success: false,
+      reason: `Could not evaluate arithmetic/comparison expression: ${expr}`
+    };
+  }
+}
 
   evaluateLiteralExpression(expression) {
     const expr = String(expression || "").trim();
@@ -1432,8 +1837,46 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
 
   const env = {};
 
+  //
+  // Create root parameter values.
+  //
   for (const param of model.params) {
-    env[param] = this.valueBuilder.buildValidValue(model.name, param, context);
+    env[param] = this.valueBuilder.buildValidValue(
+      model.name,
+      param,
+      context
+    );
+  }
+
+  //
+  // Populate nested object properties discovered from the function body.
+  //
+  const memberAccesses = context.memberAccesses || {};
+
+  for (const [root, properties] of Object.entries(memberAccesses)) {
+
+    if (
+      env[root] === undefined ||
+      env[root] === null ||
+      typeof env[root] !== "object" ||
+      Array.isArray(env[root])
+    ) {
+      env[root] = {};
+    }
+
+    for (const property of properties) {
+
+      if (env[root][property] !== undefined) {
+        continue;
+      }
+
+      env[root][property] =
+        this.valueBuilder.buildValidValue(
+          model.name,
+          property,
+          context
+        );
+    }
   }
 
   return env;
@@ -1519,26 +1962,290 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
 
 
 buildValueContextForModel(model) {
+
+  const body = String(model.body || "");
+  const memberAccesses = {};
+
+  //
+  // Discover accesses like:
+  //
+  // order.symbol
+  // account.cashBalance
+  // position.quantity
+  //
+  const memberPattern =
+    /\b([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\b/g;
+
+  let match;
+
+  while ((match = memberPattern.exec(body)) !== null) {
+
+    const objectName = match[1];
+    const propertyName = match[2];
+
+    if (!model.params.includes(objectName)) {
+      continue;
+    }
+
+    if (!memberAccesses[objectName]) {
+      memberAccesses[objectName] = [];
+    }
+
+    if (!memberAccesses[objectName].includes(propertyName)) {
+      memberAccesses[objectName].push(propertyName);
+    }
+  }
+
   return {
-    body: model.body,
+    body,
     source: model.source,
     conditions: model.validationConditions,
     returnExpression: model.returnExpression,
-    params: model.params
+    params: model.params,
+    memberAccesses
+  };
+}
+
+validateNestedExecutionPathForReturnExample(statements, env, context = {}) {
+  const workingEnv = env;
+
+  this.populateEnvAliasesFromObjects(workingEnv);
+
+  for (const statement of statements || []) {
+    if (!statement) continue;
+
+    if (statement.type === "assignment") {
+      const result = this.evaluateExpression(
+        statement.expression,
+        workingEnv,
+        context,
+        new Set()
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested assignment ${statement.name}: ${result.reason || statement.expression}`
+        };
+      }
+
+      workingEnv[statement.name] = result.value;
+      this.populateEnvAliasesFromObjects(workingEnv);
+      continue;
+    }
+
+    if (statement.type === "expression") {
+      const result = this.evaluateExpression(
+        statement.expression,
+        workingEnv,
+        context,
+        new Set()
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested expression statement: ${statement.expression}`
+        };
+      }
+
+      this.populateEnvAliasesFromObjects(workingEnv);
+      continue;
+    }
+
+    if (statement.type === "if-throw") {
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested throw guard: ${statement.condition}: ${result.reason || ""}`
+        };
+      }
+
+      if (result.value === true) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Generated valid input hits nested throw path: ${statement.condition}`
+        };
+      }
+
+      continue;
+    }
+
+    if (statement.type === "if-return") {
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested return guard: ${statement.condition}: ${result.reason || ""}`
+        };
+      }
+
+      if (result.value === true) {
+        const returnResult = this.evaluateExpression(
+          statement.returnExpression,
+          workingEnv,
+          context,
+          new Set()
+        );
+
+        if (!returnResult.success) {
+          return {
+            safe: false,
+            returned: false,
+            reason: `Could not evaluate nested conditional return expression: ${statement.returnExpression}: ${returnResult.reason || ""}`
+          };
+        }
+
+        return {
+          safe: true,
+          returned: true,
+          reason: `Generated input reaches nested conditional return: ${statement.condition}`
+        };
+      }
+
+      continue;
+    }
+
+    if (statement.type === "if-branch") {
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested branch guard: ${statement.condition}: ${result.reason || ""}`
+        };
+      }
+
+      if (result.value === true) {
+        const nestedResult = this.validateNestedExecutionPathForReturnExample(
+          statement.statements || [],
+          workingEnv,
+          context
+        );
+
+        if (!nestedResult.safe || nestedResult.returned) {
+          return nestedResult;
+        }
+      }
+
+      continue;
+    }
+
+    if (statement.type === "throw") {
+      return {
+        safe: false,
+        returned: false,
+        reason: `Generated valid input reaches nested throw statement: ${statement.message || "Error"}`
+      };
+    }
+
+    if (statement.type === "return") {
+      const result = this.evaluateExpression(
+        statement.expression,
+        workingEnv,
+        context,
+        new Set()
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          returned: false,
+          reason: `Could not evaluate nested return expression: ${statement.expression}: ${result.reason || ""}`
+        };
+      }
+
+      return {
+        safe: true,
+        returned: true,
+        reason: "Generated valid input reaches nested return."
+      };
+    }
+  }
+
+  return {
+    safe: true,
+    returned: false,
+    reason: "Nested execution path did not hit a throw path."
   };
 }
 
 validateExecutionPathForReturnExample(model, env, context = {}) {
   const statements = this.extractExecutableStatements(model.body);
+  const workingEnv = { ...env };
+
+  this.populateEnvAliasesFromObjects(workingEnv);
 
   for (const statement of statements) {
-    if (statement.type === "if-throw") {
-      const result = this.evaluateBooleanCondition(statement.condition, env);
+    if (!statement) continue;
+
+    if (statement.type === "assignment") {
+      const result = this.evaluateExpression(
+        statement.expression,
+        workingEnv,
+        context,
+        new Set()
+      );
 
       if (!result.success) {
         return {
           safe: false,
-          reason: `Could not evaluate throw guard: ${statement.condition}`
+          reason: `Could not evaluate assignment ${statement.name}: ${result.reason || statement.expression}`
+        };
+      }
+
+      workingEnv[statement.name] = result.value;
+      this.populateEnvAliasesFromObjects(workingEnv);
+      continue;
+    }
+
+    if (statement.type === "expression") {
+      const result = this.evaluateExpression(
+        statement.expression,
+        workingEnv,
+        context,
+        new Set()
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          reason: `Could not evaluate expression statement: ${statement.expression}`
+        };
+      }
+
+      this.populateEnvAliasesFromObjects(workingEnv);
+      continue;
+    }
+
+    if (statement.type === "if-throw") {
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          reason: `Could not evaluate throw guard: ${statement.condition}: ${result.reason || ""}`
         };
       }
 
@@ -1553,22 +2260,88 @@ validateExecutionPathForReturnExample(model, env, context = {}) {
     }
 
     if (statement.type === "if-return") {
-      const result = this.evaluateBooleanCondition(statement.condition, env);
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
 
       if (!result.success) {
         return {
           safe: false,
-          reason: `Could not evaluate conditional return guard: ${statement.condition}`
+          reason: `Could not evaluate conditional return guard: ${statement.condition}: ${result.reason || ""}`
+        };
+      }
+
+      if (result.value === true) {
+        const returnResult = this.evaluateExpression(
+          statement.returnExpression,
+          workingEnv,
+          context,
+          new Set()
+        );
+
+        if (!returnResult.success) {
+          return {
+            safe: false,
+            reason: `Could not evaluate conditional return expression: ${statement.returnExpression}: ${returnResult.reason || ""}`
+          };
+        }
+
+        return {
+          safe: true,
+          reason: `Generated input reaches conditional return: ${statement.condition}`
         };
       }
 
       continue;
     }
 
-    if (statement.type === "expression") {
+    if (statement.type === "if-branch") {
+      const result = this.evaluateBooleanCondition(
+        statement.condition,
+        workingEnv
+      );
+
+      if (!result.success) {
+        return {
+          safe: false,
+          reason: `Could not evaluate branch guard: ${statement.condition}: ${result.reason || ""}`
+        };
+      }
+
+      if (result.value === true) {
+        const nestedCheck = this.validateNestedExecutionPathForReturnExample(
+          statement.statements || [],
+          workingEnv,
+          context
+        );
+
+        if (!nestedCheck.safe) {
+          return nestedCheck;
+        }
+
+        if (nestedCheck.returned) {
+          return {
+            safe: true,
+            reason: `Generated input reaches nested return: ${statement.condition}`
+          };
+        }
+      }
+
+      continue;
+    }
+
+    if (statement.type === "throw") {
+      return {
+        safe: false,
+        reason: `Generated valid input reaches throw statement: ${statement.message || "Error"}`
+      };
+    }
+
+    if (statement.type === "return") {
       const result = this.evaluateExpression(
         statement.expression,
-        { ...env },
+        workingEnv,
         context,
         new Set()
       );
@@ -1576,18 +2349,20 @@ validateExecutionPathForReturnExample(model, env, context = {}) {
       if (!result.success) {
         return {
           safe: false,
-          reason: `Could not evaluate expression statement: ${statement.expression}`
+          reason: `Could not evaluate return expression: ${statement.expression}: ${result.reason || ""}`
         };
       }
 
-      continue;
+      return {
+        safe: true,
+        reason: "Generated valid input reaches final return."
+      };
     }
   }
 
   return {
-    safe: true,
-    reason:
-      "Generated valid input does not hit a throw path and all branch/expression guards are evaluable."
+    safe: false,
+    reason: "No reachable return statement found while validating execution path."
   };
 }
 
@@ -1668,60 +2443,269 @@ skipWhitespaceAndComments(text, index) {
   return i;
 }
 
-parseVariableDeclaration(text, declarationStart) {
-  const assignmentIndex = this.findTopLevelCharacterFrom(text, "=", declarationStart);
+parseObjectDestructuringDeclaration(rawName, sourceExpression, endIndex) {
+  const text = String(rawName || "").trim();
 
-  if (assignmentIndex === -1) return null;
-
-  const rawName = text.slice(declarationStart, assignmentIndex).trim();
-
-  if (
-    rawName.startsWith("{") ||
-    rawName.startsWith("[")
-  ) {
+  if (!text.startsWith("{") || !text.endsWith("}")) {
     return null;
   }
 
-  const nameMatch = rawName.match(/^([A-Za-z_$][\w$]*)$/);
+  const inner = text.slice(1, -1).trim();
 
-  if (!nameMatch) return null;
+  if (!inner) {
+    return null;
+  }
 
-  const expressionStart = assignmentIndex + 1;
-  const expressionEnd = this.findTopLevelSemicolon(text, expressionStart);
+  const declarations = [];
 
-  if (expressionEnd === -1) return null;
+  for (const entry of this.splitTopLevelArguments(inner)) {
+    const item = String(entry || "").trim();
+
+    if (!item || item.startsWith("...")) {
+      continue;
+    }
+
+    const colonIndex = this.findTopLevelCharacter(item, ":");
+
+    if (colonIndex === -1) {
+      const cleanName = this.cleanParameterName(item);
+
+      if (cleanName) {
+        declarations.push({
+          name: cleanName,
+          expression: `${sourceExpression}.${cleanName}`
+        });
+      }
+
+      continue;
+    }
+
+    const propertyName = item
+      .slice(0, colonIndex)
+      .trim()
+      .replace(/^["'`]|["'`]$/g, "");
+
+    const aliasName = this.cleanParameterName(
+      item.slice(colonIndex + 1).trim()
+    );
+
+    if (propertyName && aliasName) {
+      declarations.push({
+        name: aliasName,
+        expression: `${sourceExpression}.${propertyName}`
+      });
+    }
+  }
+
+  if (declarations.length === 0) {
+    return null;
+  }
 
   return {
-    name: nameMatch[1],
-    expression: text.slice(expressionStart, expressionEnd).trim(),
-    endIndex: expressionEnd
+    type: "multi-assignment",
+    declarations,
+    endIndex
   };
 }
 
+parseArrayDestructuringDeclaration(rawName, sourceExpression, endIndex) {
+  const text = String(rawName || "").trim();
+
+  if (!text.startsWith("[") || !text.endsWith("]")) {
+    return null;
+  }
+
+  const inner = text.slice(1, -1).trim();
+
+  if (!inner) {
+    return null;
+  }
+
+  const declarations = [];
+
+  this.splitTopLevelArguments(inner).forEach((entry, index) => {
+    const name = this.cleanParameterName(entry);
+
+    if (!name) return;
+
+    declarations.push({
+      name,
+      expression: `${sourceExpression}[${index}]`
+    });
+  });
+
+  if (declarations.length === 0) {
+    return null;
+  }
+
+  return {
+    type: "multi-assignment",
+    declarations,
+    endIndex
+  };
+}
+
+parseVariableDeclaration(text, declarationStart) {
+  const source = String(text || "");
+
+  const statementEnd = this.findTopLevelSemicolon(source, declarationStart);
+
+  if (statementEnd === -1) {
+    return null;
+  }
+
+  const declarationText = source
+    .slice(declarationStart, statementEnd)
+    .trim();
+
+  if (!declarationText) {
+    return null;
+  }
+
+  const assignmentIndex = this.findTopLevelCharacterFrom(
+    declarationText,
+    "=",
+    0
+  );
+
+  if (assignmentIndex === -1) {
+    return null;
+  }
+
+  const rawName = declarationText
+    .slice(0, assignmentIndex)
+    .trim();
+
+  const expression = declarationText
+    .slice(assignmentIndex + 1)
+    .trim();
+
+  if (!rawName || !expression) {
+    return null;
+  }
+
+  const simpleNameMatch = rawName.match(/^([A-Za-z_$][\w$]*)$/);
+
+  if (simpleNameMatch) {
+    return {
+      type: "assignment",
+      name: simpleNameMatch[1],
+      expression,
+      endIndex: statementEnd
+    };
+  }
+
+  const objectDestructure = this.parseObjectDestructuringDeclaration(
+    rawName,
+    expression,
+    statementEnd
+  );
+
+  if (objectDestructure) {
+    return objectDestructure;
+  }
+
+  const arrayDestructure = this.parseArrayDestructuringDeclaration(
+    rawName,
+    expression,
+    statementEnd
+  );
+
+  if (arrayDestructure) {
+    return arrayDestructure;
+  }
+
+  return null;
+}
+
+findFirstReturnStatement(statements = []) {
+  for (const statement of statements || []) {
+    if (!statement) continue;
+
+    if (statement.type === "return") {
+      return statement;
+    }
+
+    if (statement.type === "if-return") {
+      return statement;
+    }
+
+    if (Array.isArray(statement.statements)) {
+      const nested = this.findFirstReturnStatement(statement.statements);
+
+      if (nested) {
+        return nested;
+      }
+    }
+
+    if (Array.isArray(statement.consequentStatements)) {
+      const nested = this.findFirstReturnStatement(
+        statement.consequentStatements
+      );
+
+      if (nested) {
+        return nested;
+      }
+    }
+
+    if (Array.isArray(statement.alternateStatements)) {
+      const nested = this.findFirstReturnStatement(
+        statement.alternateStatements
+      );
+
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+}
+
 pushIfStatementFromNested(statements, condition, nestedStatements) {
-  const throwStatement = nestedStatements.find((statement) =>
-    statement.type === "throw"
+  const nested = Array.isArray(nestedStatements)
+    ? nestedStatements.filter(Boolean)
+    : [];
+
+  //
+  // Prefer explicit throw paths.
+  //
+  const throwStatement = nested.find((statement) =>
+    statement.type === "throw" ||
+    statement.type === "if-throw"
   );
 
   if (throwStatement) {
     statements.push({
       type: "if-throw",
       condition,
-      message: throwStatement.message
+      message: throwStatement.message || "Error"
     });
 
     return;
   }
 
-  const returnStatement = nestedStatements.find((statement) =>
-    statement.type === "return"
-  );
+  //
+  // Important:
+  // Do not require nestedStatements.length === 1.
+  // Blocks like:
+  //
+  // if (...) {
+  //   const x = ...
+  //   return x;
+  // }
+  //
+  // are still conditional returns.
+  //
+  const returnStatement = this.findFirstReturnStatement(nested);
 
-  if (returnStatement && nestedStatements.length === 1) {
+  if (returnStatement) {
     statements.push({
       type: "if-return",
       condition,
-      returnExpression: returnStatement.expression
+      returnExpression:
+        returnStatement.expression ||
+        returnStatement.returnExpression
     });
 
     return;
@@ -1730,7 +2714,7 @@ pushIfStatementFromNested(statements, condition, nestedStatements) {
   statements.push({
     type: "if-branch",
     condition,
-    statements: nestedStatements
+    statements: nested
   });
 }
 
@@ -1773,6 +2757,39 @@ findTopLevelCharacterFrom(text, targetCharacter, startIndex = 0) {
   return -1;
 }
 
+extractDirectReturnStatement(blockBody) {
+  const text = String(blockBody || "").trim();
+
+  if (!text) return null;
+
+  let i = 0;
+
+  while (i < text.length) {
+    i = this.skipWhitespaceAndComments(text, i);
+
+    if (i >= text.length) break;
+
+    if (!this.startsWithKeywordAt(text, i, "return")) {
+      return null;
+    }
+
+    const expressionStart = i + "return".length;
+    const expressionEnd = this.findReturnExpressionEnd(
+      text,
+      expressionStart
+    );
+
+    const expression = text
+      .slice(expressionStart, expressionEnd)
+      .replace(/;$/, "")
+      .trim();
+
+    return expression || null;
+  }
+
+  return null;
+}
+
 extractExecutableStatements(body) {
   const text = String(body || "");
   const statements = [];
@@ -1785,6 +2802,9 @@ extractExecutableStatements(body) {
 
     if (i >= text.length) break;
 
+    //
+    // if (...) { ... } or if (...) statement;
+    //
     const ifMatch = text.slice(i).match(/^if\s*\(/);
 
     if (ifMatch) {
@@ -1800,26 +2820,52 @@ extractExecutableStatements(body) {
         .slice(openParenIndex + 1, closeParenIndex)
         .trim();
 
-      let blockStart = this.skipWhitespaceAndComments(text, closeParenIndex + 1);
+      let blockStart = this.skipWhitespaceAndComments(
+        text,
+        closeParenIndex + 1
+      );
 
+      //
+      // if (...) singleStatement;
+      //
       if (text[blockStart] !== "{") {
-        const singleStatementEnd = this.findTopLevelSemicolon(text, blockStart);
+        const singleStatementEnd = this.findTopLevelSemicolon(
+          text,
+          blockStart
+        );
 
         if (singleStatementEnd === -1) {
           i = closeParenIndex + 1;
           continue;
         }
 
-        const singleStatementBody = text.slice(blockStart, singleStatementEnd + 1);
-        const nestedStatements = this.extractExecutableStatements(singleStatementBody);
+        const singleStatementBody = text.slice(
+          blockStart,
+          singleStatementEnd + 1
+        );
 
-        this.pushIfStatementFromNested(statements, condition, nestedStatements);
+        const nestedStatements =
+          this.extractExecutableStatements(singleStatementBody);
+
+        this.pushIfStatementFromNested(
+          statements,
+          condition,
+          nestedStatements
+        );
 
         i = singleStatementEnd + 1;
         continue;
       }
 
-      const blockEnd = this.findMatchingDelimiter(text, blockStart, "{", "}");
+      //
+      // if (...) { ... }
+      //
+      const blockEnd = this.findMatchingDelimiter(
+        text,
+        blockStart,
+        "{",
+        "}"
+      );
 
       if (blockEnd === -1) {
         i = closeParenIndex + 1;
@@ -1829,19 +2875,40 @@ extractExecutableStatements(body) {
       const blockBody = text.slice(blockStart + 1, blockEnd);
       const nestedStatements = this.extractExecutableStatements(blockBody);
 
-      this.pushIfStatementFromNested(statements, condition, nestedStatements);
+      const directReturn = this.extractDirectReturnStatement(blockBody);
+
+      if (directReturn && nestedStatements.length <= 1) {
+        statements.push({
+          type: "if-return",
+          condition,
+          returnExpression: directReturn
+        });
+      } else {
+        this.pushIfStatementFromNested(
+          statements,
+          condition,
+          nestedStatements
+        );
+      }
 
       i = blockEnd + 1;
       continue;
     }
 
+    //
+    // const / let / var declarations
+    //
     const declarationMatch = text
       .slice(i)
       .match(/^(?:const|let|var)\s+/);
 
     if (declarationMatch) {
       const declarationStart = i + declarationMatch[0].length;
-      const assignmentInfo = this.parseVariableDeclaration(text, declarationStart);
+
+      const assignmentInfo = this.parseVariableDeclaration(
+        text,
+        declarationStart
+      );
 
       if (!assignmentInfo) {
         const statementEnd = this.findTopLevelSemicolon(text, i);
@@ -1849,24 +2916,48 @@ extractExecutableStatements(body) {
         continue;
       }
 
-      if (!assignmentNames.has(assignmentInfo.name)) {
-        assignmentNames.add(assignmentInfo.name);
-        statements.push({
-          type: "assignment",
-          name: assignmentInfo.name,
-          expression: assignmentInfo.expression
-        });
+      if (assignmentInfo.type === "multi-assignment") {
+        for (const declaration of assignmentInfo.declarations || []) {
+          if (!declaration?.name) continue;
+
+          if (!assignmentNames.has(declaration.name)) {
+            assignmentNames.add(declaration.name);
+
+            statements.push({
+              type: "assignment",
+              name: declaration.name,
+              expression: declaration.expression
+            });
+          }
+        }
+      } else if (assignmentInfo.name) {
+        if (!assignmentNames.has(assignmentInfo.name)) {
+          assignmentNames.add(assignmentInfo.name);
+
+          statements.push({
+            type: "assignment",
+            name: assignmentInfo.name,
+            expression: assignmentInfo.expression
+          });
+        }
       }
 
       i = assignmentInfo.endIndex + 1;
       continue;
     }
 
+    //
+    // return ...
+    //
     const returnMatch = text.slice(i).match(/^return\b/);
 
     if (returnMatch) {
       const expressionStart = i + returnMatch[0].length;
-      const expressionEnd = this.findReturnExpressionEnd(text, expressionStart);
+
+      const expressionEnd = this.findReturnExpressionEnd(
+        text,
+        expressionStart
+      );
 
       const expression = text
         .slice(expressionStart, expressionEnd)
@@ -1882,37 +2973,53 @@ extractExecutableStatements(body) {
       continue;
     }
 
-const throwMatch = text.slice(i).match(/^throw\s+new\s+Error\s*\(/);
+    //
+    // throw new Error(...)
+    //
+    const throwMatch = text
+      .slice(i)
+      .match(/^throw\s+new\s+Error\s*\(/);
 
-if (throwMatch) {
-  const expressionEnd = this.findTopLevelSemicolon(text, i);
+    if (throwMatch) {
+      const expressionEnd = this.findTopLevelSemicolon(text, i);
 
-  if (expressionEnd === -1) {
-    i++;
-    continue;
-  }
+      if (expressionEnd === -1) {
+        i++;
+        continue;
+      }
 
-  const expression = text.slice(i, expressionEnd).trim();
-  const messageMatch = expression.match(
-    /throw\s+new\s+Error\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/
-  );
+      const expression = text
+        .slice(i, expressionEnd)
+        .trim();
 
-  statements.push({
-    type: "throw",
-    message: messageMatch ? messageMatch[1] : "Error",
-    expression
-  });
+      const messageMatch = expression.match(
+        /throw\s+new\s+Error\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/
+      );
 
-  i = expressionEnd + 1;
-  continue;
-}
+      statements.push({
+        type: "throw",
+        message: messageMatch ? messageMatch[1] : "Error",
+        expression
+      });
 
+      i = expressionEnd + 1;
+      continue;
+    }
+
+    //
+    // Other expression statements, e.g. validateOrder(order);
+    //
     const expressionStatementEnd = this.findTopLevelSemicolon(text, i);
 
     if (expressionStatementEnd !== -1) {
-      const expression = text.slice(i, expressionStatementEnd).trim();
+      const expression = text
+        .slice(i, expressionStatementEnd)
+        .trim();
 
-      if (expression && this.isLikelyExecutableExpressionStatement(expression)) {
+      if (
+        expression &&
+        this.isLikelyExecutableExpressionStatement(expression)
+      ) {
         statements.push({
           type: "expression",
           expression
@@ -1932,64 +3039,125 @@ if (throwMatch) {
 evaluateBooleanCondition(condition, env) {
   const expression = String(condition || "").trim();
 
-  if (!expression) return { success: false };
+  if (!expression) {
+    return {
+      success: false,
+      reason: "Empty boolean condition."
+    };
+  }
 
   const replaced = this.replaceStringHelpersInCondition(expression);
+
+
 
   try {
     const fn = Function(
       ...Object.keys(env),
-      `"use strict"; return (${replaced});`
+      `
+      "use strict";
+      return (${replaced});
+      `
     );
+
+    const value = fn(...Object.values(env));
+
+   
 
     return {
       success: true,
-      value: Boolean(fn(...Object.values(env)))
+      value: Boolean(value),
+      description: `${expression} = ${Boolean(value)}`
     };
-  } catch {
-    return { success: false };
+  } catch (error) {
+  
+
+    return {
+      success: false,
+      reason: `Could not evaluate boolean condition '${expression}': ${error.message}`
+    };
   }
 }
 
 replaceStringHelpersInCondition(expression) {
   return String(expression || "")
-    .replace(/String\s*\(([^)]+)\)\.toUpperCase\s*\(\)/g, "String($1).toUpperCase()")
-    .replace(/String\s*\(([^)]+)\)\.toLowerCase\s*\(\)/g, "String($1).toLowerCase()");
+    .replace(
+      /String\s*\((.*?)\)\s*\.toUpperCase\s*\(\s*\)/g,
+      "String($1).toUpperCase()"
+    )
+    .replace(
+      /String\s*\((.*?)\)\s*\.toLowerCase\s*\(\s*\)/g,
+      "String($1).toLowerCase()"
+    )
+    .replace(
+      /String\s*\((.*?)\)/g,
+      "String($1)"
+    );
+}
+
+expressionLooksBoolean(expression) {
+  const expr = String(expression || "").trim();
+
+  if (!expr) return false;
+
+  return (
+    /(?:===|!==|==|!=|>=|<=|>|<)/.test(expr) ||
+    /&&|\|\|/.test(expr) ||
+    /\btrue\b|\bfalse\b/.test(expr) ||
+    /^!/.test(expr) ||
+    /\b[a-zA-Z_$][\w$]*\.includes\s*\(/.test(expr)
+  );
 }
 
 evaluateConditionalExpression(expression, env, context, stack) {
   const expr = String(expression || "").trim();
+
   const questionIndex = this.findTopLevelCharacter(expr, "?");
 
-  if (questionIndex === -1) return { success: false };
+  if (questionIndex !== -1) {
+    const colonIndex = this.findMatchingConditionalColon(expr, questionIndex);
 
-  const colonIndex = this.findMatchingConditionalColon(expr, questionIndex);
+    if (colonIndex === -1) return { success: false };
 
-  if (colonIndex === -1) return { success: false };
+    const condition = expr.slice(0, questionIndex).trim();
+    const left = expr.slice(questionIndex + 1, colonIndex).trim();
+    const right = expr.slice(colonIndex + 1).trim();
 
-  const condition = expr.slice(0, questionIndex).trim();
-  const left = expr.slice(questionIndex + 1, colonIndex).trim();
-  const right = expr.slice(colonIndex + 1).trim();
+    const conditionResult = this.evaluateBooleanCondition(condition, env);
 
-  const conditionResult = this.evaluateBooleanCondition(condition, env);
+    if (!conditionResult.success) {
+      return {
+        success: false,
+        reason: `Could not evaluate conditional expression guard: ${condition}`
+      };
+    }
 
-  if (!conditionResult.success) {
+    const selected = conditionResult.value ? left : right;
+    const selectedResult = this.evaluateExpression(selected, env, context, stack);
+
+    if (!selectedResult.success) return selectedResult;
+
     return {
-      success: false,
-      reason: `Could not evaluate conditional expression guard: ${condition}`
+      success: true,
+      value: selectedResult.value,
+      description: `${expr} = ${selectedResult.description}`
     };
   }
 
-  const selected = conditionResult.value ? left : right;
-  const selectedResult = this.evaluateExpression(selected, env, context, stack);
+  if (!this.expressionLooksBoolean(expr)) {
+    return { success: false };
+  }
 
-  if (!selectedResult.success) return selectedResult;
+  const booleanResult = this.evaluateBooleanCondition(expr, env);
 
-  return {
-    success: true,
-    value: selectedResult.value,
-    description: `${expr} = ${selectedResult.description}`
-  };
+  if (booleanResult.success) {
+    return {
+      success: true,
+      value: booleanResult.value,
+      description: `${expr} = ${booleanResult.value}`
+    };
+  }
+
+  return { success: false };
 }
 
 evaluateObjectExpression(expression, env, context, stack) {
@@ -2267,41 +3435,144 @@ findMatchingConditionalColon(text, questionIndex) {
 }
 
   extractFunctionSource(functionName, repoAnalysis, projectContext) {
-    const file = this.findFileForApi(functionName, repoAnalysis);
-    const fileContent = file ? this.readRepoFileSafe(file) : projectContext;
 
-    if (!fileContent) return null;
+  const file = this.findFileForApi(functionName, repoAnalysis);
 
-    const source =
-      this.extractJavascriptFunctionSource(functionName, fileContent) ||
-      this.extractPythonFunctionSource(functionName, fileContent);
+  const candidates = [];
 
-    return source;
+  if (file) {
+    const source = this.readRepoFileSafe(file);
+
+    if (source) {
+      candidates.push(source);
+    }
   }
 
+  if (projectContext) {
+    candidates.push(projectContext);
+  }
+
+  //
+  // Final fallback:
+  // search every module in repository
+  //
+  for (const mod of repoAnalysis?.modules || []) {
+
+    if (mod.file === file) continue;
+
+    const source = this.readRepoFileSafe(mod.file);
+
+    if (source) {
+      candidates.push(source);
+    }
+  }
+
+  for (const source of candidates) {
+
+    const extracted =
+      this.extractJavascriptFunctionSource(functionName, source) ||
+      this.extractPythonFunctionSource(functionName, source);
+
+    if (extracted) {
+      return extracted;
+    }
+  }
+
+  return null;
+}
+
   extractJavascriptFunctionSource(functionName, fileContent) {
-    const escaped = this.escapeRegExp(functionName);
+  const escaped = this.escapeRegExp(functionName);
 
-    const patterns = [
-      new RegExp(`(?:export\\s+)?function\\s+${escaped}\\s*\\([^)]*\\)\\s*\\{`, "m"),
-      new RegExp(`(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\s*=\\s*(?:async\\s*)?\\([^)]*\\)\\s*=>\\s*\\{`, "m")
-    ];
+  const patterns = [
+    // export function foo(...)
+    new RegExp(
+      `(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\b`,
+      "m"
+    ),
 
-    for (const pattern of patterns) {
-      const match = pattern.exec(fileContent);
-      if (!match) continue;
+    // export const foo = (...) => {}
+    new RegExp(
+      `(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\s*=`,
+      "m"
+    ),
 
-      const start = match.index;
-      const braceStart = fileContent.indexOf("{", start);
-      const end = this.findMatchingBrace(fileContent, braceStart);
+    // foo = (...) => {}
+    new RegExp(
+      `\\b${escaped}\\s*=`,
+      "m"
+    ),
 
-      if (end > braceStart) {
-        return fileContent.slice(start, end + 1);
+    // export default function foo(...)
+    new RegExp(
+      `export\\s+default\\s+(?:async\\s+)?function\\s+${escaped}\\b`,
+      "m"
+    )
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(fileContent);
+
+    if (!match) {
+      continue;
+    }
+
+    const start = match.index;
+
+    //
+    // Find the opening brace after the parameter list.
+    // This supports multiline signatures and destructured params.
+    //
+    const parenStart = fileContent.indexOf("(", start);
+
+    if (parenStart === -1) {
+      continue;
+    }
+
+    const parenEnd = this.findMatchingParen(fileContent, parenStart);
+
+    if (parenEnd === -1) {
+      continue;
+    }
+
+    let braceStart = parenEnd + 1;
+
+    while (
+      braceStart < fileContent.length &&
+      /\s/.test(fileContent[braceStart])
+    ) {
+      braceStart++;
+    }
+
+    //
+    // Arrow functions
+    //
+    if (fileContent.startsWith("=>", braceStart)) {
+      braceStart += 2;
+
+      while (
+        braceStart < fileContent.length &&
+        /\s/.test(fileContent[braceStart])
+      ) {
+        braceStart++;
       }
     }
 
-    return null;
+    if (fileContent[braceStart] !== "{") {
+      continue;
+    }
+
+    const braceEnd = this.findMatchingBrace(fileContent, braceStart);
+
+    if (braceEnd === -1) {
+      continue;
+    }
+
+    return fileContent.slice(start, braceEnd + 1);
   }
+
+  return null;
+}
 
   extractPythonFunctionSource(functionName, fileContent) {
     const escaped = this.escapeRegExp(functionName);
@@ -2369,17 +3640,82 @@ findMatchingConditionalColon(text, questionIndex) {
   }
 
   findFileForApi(functionName, repoAnalysis) {
-    for (const mod of repoAnalysis?.modules || []) {
-      const names = [
-        ...this.ensureArray(mod.functions).map((fn) => fn.name || fn),
-        ...this.ensureArray(mod.exports)
-      ].map(String);
+  if (!functionName) return null;
 
-      if (names.includes(functionName)) return mod.file;
+  const target = String(functionName).trim();
+
+  //
+  // Pass 1:
+  // exact matches from repository analysis
+  //
+  for (const mod of repoAnalysis?.modules || []) {
+
+    const names = new Set();
+
+    for (const fn of this.ensureArray(mod.functions)) {
+      if (typeof fn === "string") {
+        names.add(fn);
+      } else if (fn) {
+        if (fn.name) names.add(fn.name);
+        if (fn.exportName) names.add(fn.exportName);
+        if (fn.apiName) names.add(fn.apiName);
+      }
     }
 
-    return null;
+    for (const exported of this.ensureArray(mod.exports)) {
+      names.add(String(exported));
+    }
+
+    if (names.has(target)) {
+      return mod.file;
+    }
   }
+
+  //
+  // Pass 2:
+  // partial matches
+  //
+  for (const mod of repoAnalysis?.modules || []) {
+
+    const names = [
+      ...this.ensureArray(mod.functions).map(f =>
+        typeof f === "string"
+          ? f
+          : f?.name || f?.exportName || f?.apiName || ""
+      ),
+      ...this.ensureArray(mod.exports)
+    ];
+
+    if (names.some(name => String(name).includes(target))) {
+      return mod.file;
+    }
+  }
+
+  //
+  // Pass 3:
+  // brute-force scan every source file
+  //
+  for (const mod of repoAnalysis?.modules || []) {
+
+    const source = this.readRepoFileSafe(mod.file);
+
+    if (!source) continue;
+
+    if (
+      source.includes(`function ${target}`) ||
+      source.includes(`const ${target}`) ||
+      source.includes(`let ${target}`) ||
+      source.includes(`var ${target}`) ||
+      source.includes(`export function ${target}`) ||
+      source.includes(`export const ${target}`) ||
+      source.includes(`${target} = (`)
+    ) {
+      return mod.file;
+    }
+  }
+
+  return null;
+}
 
 normaliseRawParameterList(rawParameterList) {
   return this.splitTopLevelArguments(String(rawParameterList || ""))
@@ -2526,6 +3862,57 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
   return [];
 }
 
+findTopLevelArrow(text) {
+  const source = String(text || "");
+
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
+  let quote = null;
+
+  for (let i = 0; i < source.length - 1; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    if (quote) {
+      if (char === "\\" && i + 1 < source.length) {
+        i++;
+        continue;
+      }
+
+      if (char === quote) {
+        quote = null;
+      }
+
+      continue;
+    }
+
+    if (char === "\"" || char === "'" || char === "`") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "(") parenDepth++;
+    if (char === ")") parenDepth--;
+    if (char === "{") braceDepth++;
+    if (char === "}") braceDepth--;
+    if (char === "[") bracketDepth++;
+    if (char === "]") bracketDepth--;
+
+    if (
+      char === "=" &&
+      next === ">" &&
+      parenDepth === 0 &&
+      braceDepth === 0 &&
+      bracketDepth === 0
+    ) {
+      return i;
+    }
+  }
+
+  return source.indexOf("=>");
+}
+
   extractFunctionBody(source) {
   const text = String(source || "").trim();
 
@@ -2533,34 +3920,112 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
 
   // ---------- JavaScript / TypeScript ----------
 
-  const braceIndex = text.indexOf("{");
+  const arrowIndex = this.findTopLevelArrow(text);
 
-  if (braceIndex !== -1) {
-    const closingBrace = this.findMatchingDelimiter(
-      text,
-      braceIndex,
-      "{",
-      "}"
-    );
+  if (arrowIndex !== -1) {
+    let bodyStart = arrowIndex + 2;
 
-    if (closingBrace !== -1) {
-      return text
-        .slice(braceIndex + 1, closingBrace)
-        .trim();
+    while (bodyStart < text.length && /\s/.test(text[bodyStart])) {
+      bodyStart++;
+    }
+
+    if (text[bodyStart] === "{") {
+      const bodyEnd = this.findMatchingDelimiter(
+        text,
+        bodyStart,
+        "{",
+        "}"
+      );
+
+      if (bodyEnd !== -1) {
+        return text.slice(bodyStart + 1, bodyEnd).trim();
+      }
+    }
+
+    const expression = text.slice(bodyStart).trim();
+
+    if (expression) {
+      return `return ${expression.replace(/;$/, "")};`;
     }
   }
 
-  // ---------- Arrow function with expression body ----------
+  const functionMatch = text.match(/\bfunction\b/);
 
-  const arrowIndex = text.indexOf("=>");
+  if (functionMatch) {
+    const functionIndex = functionMatch.index;
+    const paramsStart = text.indexOf("(", functionIndex);
 
-  if (arrowIndex !== -1) {
-    const expression = text
-      .slice(arrowIndex + 2)
-      .trim();
+    if (paramsStart !== -1) {
+      const paramsEnd = this.findMatchingParen(text, paramsStart);
 
-    if (!expression.startsWith("{")) {
-      return `return ${expression.replace(/;$/, "")};`;
+      if (paramsEnd !== -1) {
+        let bodyStart = paramsEnd + 1;
+
+        while (bodyStart < text.length && /\s/.test(text[bodyStart])) {
+          bodyStart++;
+        }
+
+        if (text[bodyStart] === "{") {
+          const bodyEnd = this.findMatchingDelimiter(
+            text,
+            bodyStart,
+            "{",
+            "}"
+          );
+
+          if (bodyEnd !== -1) {
+            return text.slice(bodyStart + 1, bodyEnd).trim();
+          }
+        }
+      }
+    }
+  }
+
+  const assignmentMatch = text.match(
+    /(?:const|let|var)\s+[A-Za-z_$][\w$]*\s*=/
+  );
+
+  if (assignmentMatch) {
+    const afterEquals = assignmentMatch.index + assignmentMatch[0].length;
+    const paramsStart = text.indexOf("(", afterEquals);
+
+    if (paramsStart !== -1) {
+      const paramsEnd = this.findMatchingParen(text, paramsStart);
+
+      if (paramsEnd !== -1) {
+        let bodyStart = paramsEnd + 1;
+
+        while (bodyStart < text.length && /\s/.test(text[bodyStart])) {
+          bodyStart++;
+        }
+
+        if (text.startsWith("=>", bodyStart)) {
+          bodyStart += 2;
+
+          while (bodyStart < text.length && /\s/.test(text[bodyStart])) {
+            bodyStart++;
+          }
+
+          if (text[bodyStart] === "{") {
+            const bodyEnd = this.findMatchingDelimiter(
+              text,
+              bodyStart,
+              "{",
+              "}"
+            );
+
+            if (bodyEnd !== -1) {
+              return text.slice(bodyStart + 1, bodyEnd).trim();
+            }
+          }
+
+          const expression = text.slice(bodyStart).trim();
+
+          if (expression) {
+            return `return ${expression.replace(/;$/, "")};`;
+          }
+        }
+      }
     }
   }
 
@@ -2568,7 +4033,7 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
 
   const lines = text.split(/\r?\n/);
 
-  const defLine = lines.findIndex(line =>
+  const defLine = lines.findIndex((line) =>
     /^\s*def\s+/.test(line)
   );
 
@@ -2584,8 +4049,7 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
         continue;
       }
 
-      const currentIndent =
-        line.match(/^\s*/)[0].length;
+      const currentIndent = line.match(/^\s*/)[0].length;
 
       if (indent === null) {
         indent = currentIndent;
@@ -2604,9 +4068,45 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
   return "";
 }
 
-  extractAssignments(body) {
-    return [...this.extractJavascriptAssignments(body), ...this.extractPythonAssignments(body)];
-  }
+extractAssignments(body) {
+  const statements = this.extractExecutableStatements(body);
+
+  const assignments = [];
+
+  const visit = (items = []) => {
+    for (const statement of items) {
+      if (!statement) continue;
+
+      if (statement.type === "assignment") {
+        assignments.push({
+          name: statement.name,
+          expression: statement.expression
+        });
+
+        continue;
+      }
+
+      if (
+        statement.type === "if-branch" &&
+        Array.isArray(statement.statements)
+      ) {
+        visit(statement.statements);
+      }
+
+      if (Array.isArray(statement.consequentStatements)) {
+        visit(statement.consequentStatements);
+      }
+
+      if (Array.isArray(statement.alternateStatements)) {
+        visit(statement.alternateStatements);
+      }
+    }
+  };
+
+  visit(statements);
+
+  return assignments;
+}
 
   extractJavascriptAssignments(body) {
     const assignments = [];
@@ -2643,76 +4143,278 @@ findMatchingDelimiter(text, openIndex, openChar, closeChar) {
     return assignments;
   }
 
-  findTopLevelSemicolon(text, start) {
-    let depth = 0;
-    let inString = false;
-    let stringChar = "";
+  findTopLevelSemicolon(text, start = 0) {
+  const source = String(text || "");
 
-    for (let i = start; i < text.length; i++) {
-      const char = text[i];
+  let parenDepth = 0;
+  let braceDepth = 0;
+  let bracketDepth = 0;
 
-      if (inString) {
-        if (char === "\\") {
-          i++;
+  let quote = null;
+  let templateExpressionDepth = 0;
+
+  for (let i = Math.max(0, start); i < source.length; i++) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    //
+    // Line comment
+    //
+    if (!quote && char === "/" && next === "/") {
+      i += 2;
+
+      while (i < source.length && source[i] !== "\n") {
+        i++;
+      }
+
+      continue;
+    }
+
+    //
+    // Block comment
+    //
+    if (!quote && char === "/" && next === "*") {
+      i += 2;
+
+      while (
+        i < source.length - 1 &&
+        !(source[i] === "*" && source[i + 1] === "/")
+      ) {
+        i++;
+      }
+
+      i++;
+      continue;
+    }
+
+    //
+    // Inside string/template
+    //
+    if (quote) {
+      if (char === "\\") {
+        i++;
+        continue;
+      }
+
+      if (
+        quote === "`" &&
+        char === "$" &&
+        next === "{"
+      ) {
+        templateExpressionDepth++;
+        braceDepth++;
+        i++;
+        continue;
+      }
+
+      if (
+        quote === "`" &&
+        templateExpressionDepth > 0
+      ) {
+        if (char === "{") {
+          braceDepth++;
           continue;
         }
 
-        if (char === stringChar) {
-          inString = false;
-          stringChar = "";
+        if (char === "}") {
+          braceDepth--;
+          templateExpressionDepth--;
+
+          if (templateExpressionDepth === 0) {
+            continue;
+          }
         }
-
-        continue;
       }
 
-      if (char === "'" || char === `"` || char === "`") {
-        inString = true;
-        stringChar = char;
-        continue;
+      if (
+        templateExpressionDepth === 0 &&
+        char === quote
+      ) {
+        quote = null;
       }
 
-      if (char === "(" || char === "[" || char === "{") depth++;
-      if (char === ")" || char === "]" || char === "}") depth--;
-
-      if (char === ";" && depth === 0) return i;
+      continue;
     }
 
-    return -1;
+    //
+    // Enter string/template
+    //
+    if (char === "'" || char === `"` || char === "`") {
+      quote = char;
+      continue;
+    }
+
+    if (char === "(") {
+      parenDepth++;
+      continue;
+    }
+
+    if (char === ")") {
+      parenDepth = Math.max(0, parenDepth - 1);
+      continue;
+    }
+
+    if (char === "{") {
+      braceDepth++;
+      continue;
+    }
+
+    if (char === "}") {
+      braceDepth = Math.max(0, braceDepth - 1);
+      continue;
+    }
+
+    if (char === "[") {
+      bracketDepth++;
+      continue;
+    }
+
+    if (char === "]") {
+      bracketDepth = Math.max(0, bracketDepth - 1);
+      continue;
+    }
+
+    if (
+      char === ";" &&
+      parenDepth === 0 &&
+      braceDepth === 0 &&
+      bracketDepth === 0
+    ) {
+      return i;
+    }
   }
 
-  extractReturnExpression(body) {
-  const statements = this.extractExecutableStatements(body);
+  return -1;
+}
+
+findLastReturnExpressionInStatements(statements = []) {
+  if (!Array.isArray(statements)) {
+    return null;
+  }
 
   for (let i = statements.length - 1; i >= 0; i--) {
     const statement = statements[i];
 
+    if (!statement) continue;
+
     if (statement.type === "return") {
-      return String(statement.expression || "").trim();
+      const expression = String(statement.expression || "").trim();
+      if (expression) return expression;
     }
 
     if (statement.type === "if-return") {
-      return String(statement.returnExpression || "").trim();
+      const expression = String(statement.returnExpression || "").trim();
+      if (expression) return expression;
     }
 
     if (
-      statement.type === "if-branch" &&
-      Array.isArray(statement.statements)
+      Array.isArray(statement.statements) &&
+      statement.statements.length > 0
     ) {
-      for (let j = statement.statements.length - 1; j >= 0; j--) {
-        const nested = statement.statements[j];
+      const nested = this.findLastReturnExpressionInStatements(
+        statement.statements
+      );
 
-        if (nested.type === "return") {
-          return String(nested.expression || "").trim();
-        }
+      if (nested) return nested;
+    }
 
-        if (nested.type === "if-return") {
-          return String(nested.returnExpression || "").trim();
-        }
-      }
+    if (
+      Array.isArray(statement.alternateStatements) &&
+      statement.alternateStatements.length > 0
+    ) {
+      const nested = this.findLastReturnExpressionInStatements(
+        statement.alternateStatements
+      );
+
+      if (nested) return nested;
+    }
+
+    if (
+      Array.isArray(statement.consequentStatements) &&
+      statement.consequentStatements.length > 0
+    ) {
+      const nested = this.findLastReturnExpressionInStatements(
+        statement.consequentStatements
+      );
+
+      if (nested) return nested;
     }
   }
 
   return null;
+}
+
+startsWithKeywordAt(text, index, keyword) {
+  const source = String(text || "");
+  const word = String(keyword || "");
+
+  if (!source.startsWith(word, index)) {
+    return false;
+  }
+
+  const before = index === 0 ? "" : source[index - 1];
+  const after = source[index + word.length];
+
+  const beforeOk = !before || !/[A-Za-z0-9_$]/.test(before);
+  const afterOk = !after || !/[A-Za-z0-9_$]/.test(after);
+
+  return beforeOk && afterOk;
+}
+
+  extractReturnExpression(body) {
+  const text = String(body || "");
+
+  if (!text.trim()) {
+    return null;
+  }
+
+  const statements = this.extractExecutableStatements(text);
+
+  const fromStatements = this.findLastReturnExpressionInStatements(statements);
+
+  if (fromStatements) {
+    return fromStatements;
+  }
+
+  //
+  // Fallback scanner.
+  // This catches complex/multiline returns that extractExecutableStatements()
+  // may miss, especially orchestration functions returning object literals.
+  //
+  let lastReturn = null;
+  let i = 0;
+
+  while (i < text.length) {
+    i = this.skipWhitespaceAndComments(text, i);
+
+    if (i >= text.length) break;
+
+    if (!this.startsWithKeywordAt(text, i, "return")) {
+      i++;
+      continue;
+    }
+
+    const expressionStart = i + "return".length;
+    const expressionEnd = this.findReturnExpressionEnd(text, expressionStart);
+
+    if (expressionEnd <= expressionStart) {
+      i++;
+      continue;
+    }
+
+    const expression = text
+      .slice(expressionStart, expressionEnd)
+      .replace(/;$/, "")
+      .trim();
+
+    if (expression) {
+      lastReturn = expression;
+    }
+
+    i = expressionEnd + 1;
+  }
+
+  return lastReturn;
 }
 
   findReturnExpressionEnd(text, start) {

@@ -237,7 +237,7 @@ None identified.
 
 1 - **Deterministic example: applyStockSplit return behaviour** / applyStockSplit
   - Scenario: Call applyStockSplit with valid representative inputs.
-  - Inputs: Call applyStockSplit with valid representative inputs. | args: {"symbol":"ABC","quantity":10,"averagePrice":10}; 10; 10 | setup: 
+  - Inputs: Call applyStockSplit with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: {"symbol":"ABC","quantity":10,"averagePrice":10}
@@ -253,7 +253,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyStockSplit validation exception** / applyStockSplit
   - Scenario: Call applyStockSplit with invalid input for validation condition: !position.
@@ -273,7 +273,7 @@ None identified.
 
 1 - **Deterministic example: applyStockSplit validation exception** / applyStockSplit
   - Scenario: Call applyStockSplit with invalid input for validation condition: numerator <= 0 || denominator <= 0.
-  - Inputs: Call applyStockSplit with invalid input for validation condition: numerator <= 0 || denominator <= 0. | args: {"symbol":"ABC","quantity":10,"averagePrice":10}; 0; 10 | setup: 
+  - Inputs: Call applyStockSplit with invalid input for validation condition: numerator <= 0 || denominator <= 0. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 0; 10 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -305,7 +305,7 @@ None identified.
 
 1 - **Deterministic example: calculateDividendPayment validation exception** / calculateDividendPayment
   - Scenario: Call calculateDividendPayment with invalid input for validation condition: dividendPerShare < 0.
-  - Inputs: Call calculateDividendPayment with invalid input for validation condition: dividendPerShare < 0. | args: {"quantity":10}; -1; 10 | setup: 
+  - Inputs: Call calculateDividendPayment with invalid input for validation condition: dividendPerShare < 0. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; -1; 10 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -321,7 +321,7 @@ None identified.
 
 1 - **Deterministic example: calculateDividendPayment validation exception** / calculateDividendPayment
   - Scenario: Call calculateDividendPayment with invalid input for validation condition: withholdingTaxRate < 0 || withholdingTaxRate > 1.
-  - Inputs: Call calculateDividendPayment with invalid input for validation condition: withholdingTaxRate < 0 || withholdingTaxRate > 1. | args: {"quantity":10}; 10; 2 | setup: 
+  - Inputs: Call calculateDividendPayment with invalid input for validation condition: withholdingTaxRate < 0 || withholdingTaxRate > 1. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10; 2 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -337,7 +337,7 @@ None identified.
 
 1 - **Deterministic example: applyRightsIssue return behaviour** / applyRightsIssue
   - Scenario: Call applyRightsIssue with valid representative inputs.
-  - Inputs: Call applyRightsIssue with valid representative inputs. | args: {"quantity":10,"averagePrice":10,"symbol":"ABC"}; 10; 10 | setup: 
+  - Inputs: Call applyRightsIssue with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: {"symbol":"ABC","quantity":110,"averagePrice":10}
@@ -353,7 +353,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyRightsIssue validation exception** / applyRightsIssue
   - Scenario: Call applyRightsIssue with invalid input for validation condition: !position.
@@ -373,7 +373,7 @@ None identified.
 
 1 - **Deterministic example: applyRightsIssue validation exception** / applyRightsIssue
   - Scenario: Call applyRightsIssue with invalid input for validation condition: rightsRatio < 0 || subscriptionPrice < 0.
-  - Inputs: Call applyRightsIssue with invalid input for validation condition: rightsRatio < 0 || subscriptionPrice < 0. | args: {"quantity":10,"averagePrice":10,"symbol":"ABC"}; -1; 10 | setup: 
+  - Inputs: Call applyRightsIssue with invalid input for validation condition: rightsRatio < 0 || subscriptionPrice < 0. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; -1; 10 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -386,6 +386,22 @@ None identified.
   - Source: deterministic-test-data-builder
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in corporateActions.js: rightsRatio < 0 || subscriptionPrice < 0; Detected direct throw for validation condition: Rights issue inputs cannot be negative
+
+1 - **Deterministic example: calculateCommission return behaviour** / calculateCommission
+  - Scenario: Call calculateCommission with valid representative inputs.
+  - Inputs: Call calculateCommission with valid representative inputs. | args: 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 3
+  - Expected calculation: throw guard tradeValue < 0 = false; tier = String(accountTier || "standard").toLowerCase() = "10"; guard tier === "premium" = false; guard tier === "professional" = false; result = Math.max(3, 0.025) = 3
+  - Expected behaviour: Returns 3.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 3.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateCommission validation exception** / calculateCommission
   - Scenario: Call calculateCommission with invalid input for validation condition: tradeValue < 0.
@@ -402,6 +418,22 @@ None identified.
   - Source: deterministic-test-data-builder
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: tradeValue < 0; Detected direct throw for validation condition: Trade value cannot be negative
+
+1 - **Deterministic example: calculateStampDuty return behaviour** / calculateStampDuty
+  - Scenario: Call calculateStampDuty with valid representative inputs.
+  - Inputs: Call calculateStampDuty with valid representative inputs. | args: 10; "BUY"; "UK" | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 0.05
+  - Expected calculation: throw guard tradeValue < 0 = false; normalizedSide = String(side || "").toUpperCase() = "BUY"; normalizedMarket = String(market || "").toUpperCase() = "UK"; guard normalizedSide !== "BUY" = false; guard normalizedMarket === "UK" = true; result = tradeValue * 0.005 = 10 * 0.005 = 0.05
+  - Expected behaviour: Returns 0.05.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 0.05.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated input reaches conditional return: normalizedMarket === "UK"
 
 1 - **Deterministic example: calculateStampDuty validation exception** / calculateStampDuty
   - Scenario: Call calculateStampDuty with invalid input for validation condition: tradeValue < 0.
@@ -433,7 +465,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated input reaches conditional return: String(settlementCurrency).toUpperCase() === String(instrumentCurrency).toUpperCase()
 
 1 - **Deterministic example: calculateFxFee validation exception** / calculateFxFee
   - Scenario: Call calculateFxFee with invalid input for validation condition: tradeValue < 0.
@@ -469,7 +501,7 @@ None identified.
 
 1 - **Deterministic example: validateOrder return behaviour** / validateOrder
   - Scenario: Call validateOrder with valid representative inputs.
-  - Inputs: Call validateOrder with valid representative inputs. | args: {"side":"BUY","symbol":"ABC","quantity":10,"limitPrice":10} | setup: 
+  - Inputs: Call validateOrder with valid representative inputs. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"} | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: true
@@ -481,7 +513,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Scenario: Call validateOrder with invalid input for validation condition: !order.
@@ -501,7 +533,7 @@ None identified.
 
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Scenario: Call validateOrder with invalid input for validation condition: !order.symbol.
-  - Inputs: Call validateOrder with invalid input for validation condition: !order.symbol. | args: {"symbol":null,"side":"BUY","quantity":10,"limitPrice":10} | setup: 
+  - Inputs: Call validateOrder with invalid input for validation condition: !order.symbol. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":null,"ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"} | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -517,7 +549,7 @@ None identified.
 
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Scenario: Call validateOrder with invalid input for validation condition: order.quantity <= 0.
-  - Inputs: Call validateOrder with invalid input for validation condition: order.quantity <= 0. | args: {"quantity":0,"side":"BUY","symbol":"ABC","limitPrice":10} | setup: 
+  - Inputs: Call validateOrder with invalid input for validation condition: order.quantity <= 0. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":0,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"} | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -533,7 +565,7 @@ None identified.
 
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Scenario: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0.
-  - Inputs: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0. | args: {"limitPrice":-1,"side":"BUY","symbol":"ABC","quantity":10} | setup: 
+  - Inputs: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":-1,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"} | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -547,9 +579,57 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in orders.js: order.limitPrice !== undefined && order.limitPrice < 0; Detected direct throw for validation condition: Limit price cannot be negative
 
+1 - **Deterministic example: calculateOrderNotional return behaviour** / calculateOrderNotional
+  - Scenario: Call calculateOrderNotional with valid representative inputs.
+  - Inputs: Call calculateOrderNotional with valid representative inputs. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 100
+  - Expected calculation: expression validateOrder(order) = validateOrder(order) = true; result = calculateMarketValue(order.quantity, executionPrice) = 100
+  - Expected behaviour: Returns 100.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 100.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: calculateOrderCharges return behaviour** / calculateOrderCharges
+  - Scenario: Call calculateOrderCharges with valid representative inputs.
+  - Inputs: Call calculateOrderCharges with valid representative inputs. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":10,"instrumentCurrency":10}; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 3.5
+  - Expected calculation: expression validateOrder(order) = validateOrder(order) = true; tradeValue = calculateOrderNotional(order, executionPrice) = 100; commission = calculateCommission(tradeValue, accountTier) = 3; stampDuty = calculateStampDuty(tradeValue, order.side, order.market) = 0.5; fxFee = calculateFxFee(tradeValue, order.settlementCurrency, order.instrumentCurrency) = 0; result = commission + stampDuty + fxFee = 3 + 0.5 + 0 = 3.5
+  - Expected behaviour: Returns 3.5.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 3.5.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: calculateTotalCashImpact return behaviour** / calculateTotalCashImpact
+  - Scenario: Call calculateTotalCashImpact with valid representative inputs.
+  - Inputs: Call calculateTotalCashImpact with valid representative inputs. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: -103.5
+  - Expected calculation: expression validateOrder(order) = validateOrder(order) = true; tradeValue = calculateOrderNotional(order, executionPrice) = 100; charges = calculateOrderCharges(order, executionPrice, accountTier) = 3.5; side = String(order.side).toUpperCase() = "BUY"; guard side === "BUY" = true; result = -(tradeValue + charges) = -(100 + 3.5) = -103.5
+  - Expected behaviour: Returns -103.5.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals -103.5.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated input reaches conditional return: side === "BUY"
+
 1 - **Deterministic example: valuePosition return behaviour** / valuePosition
   - Scenario: Call valuePosition with valid representative inputs.
-  - Inputs: Call valuePosition with valid representative inputs. | args: {"quantity":10}; 10 | setup: 
+  - Inputs: Call valuePosition with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: 100
@@ -561,7 +641,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: valuePosition validation exception** / valuePosition
   - Scenario: Call valuePosition with invalid input for validation condition: !position.
@@ -581,7 +661,7 @@ None identified.
 
 1 - **Deterministic example: calculateUnrealisedPnl return behaviour** / calculateUnrealisedPnl
   - Scenario: Call calculateUnrealisedPnl with valid representative inputs.
-  - Inputs: Call calculateUnrealisedPnl with valid representative inputs. | args: {"quantity":10,"averagePrice":10}; 10 | setup: 
+  - Inputs: Call calculateUnrealisedPnl with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: 0
@@ -593,7 +673,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateUnrealisedPnl validation exception** / calculateUnrealisedPnl
   - Scenario: Call calculateUnrealisedPnl with invalid input for validation condition: !position.
@@ -613,7 +693,7 @@ None identified.
 
 1 - **Deterministic example: applyBuyToPosition return behaviour** / applyBuyToPosition
   - Scenario: Call applyBuyToPosition with valid representative inputs.
-  - Inputs: Call applyBuyToPosition with valid representative inputs. | args: {"quantity":10,"averagePrice":10,"symbol":"ABC"}; 10; 100 | setup: 
+  - Inputs: Call applyBuyToPosition with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10; 100 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: {"symbol":"ABC","quantity":20,"averagePrice":55}
@@ -629,7 +709,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyBuyToPosition validation exception** / applyBuyToPosition
   - Scenario: Call applyBuyToPosition with invalid input for validation condition: !position.
@@ -649,7 +729,7 @@ None identified.
 
 1 - **Deterministic example: applySellToPosition return behaviour** / applySellToPosition
   - Scenario: Call applySellToPosition with valid representative inputs.
-  - Inputs: Call applySellToPosition with valid representative inputs. | args: {"quantity":10,"symbol":"ABC","averagePrice":10}; 10 | setup: 
+  - Inputs: Call applySellToPosition with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: {"symbol":"ABC","quantity":0,"averagePrice":10}
@@ -665,7 +745,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applySellToPosition validation exception** / applySellToPosition
   - Scenario: Call applySellToPosition with invalid input for validation condition: !position.
@@ -685,7 +765,7 @@ None identified.
 
 1 - **Deterministic example: applySellToPosition validation exception** / applySellToPosition
   - Scenario: Call applySellToPosition with invalid input for validation condition: quantity <= 0.
-  - Inputs: Call applySellToPosition with invalid input for validation condition: quantity <= 0. | args: {"quantity":10,"symbol":"ABC","averagePrice":10}; 0 | setup: 
+  - Inputs: Call applySellToPosition with invalid input for validation condition: quantity <= 0. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 0 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -701,7 +781,7 @@ None identified.
 
 1 - **Deterministic example: applySellToPosition validation exception** / applySellToPosition
   - Scenario: Call applySellToPosition with invalid input for validation condition: quantity > position.quantity.
-  - Inputs: Call applySellToPosition with invalid input for validation condition: quantity > position.quantity. | args: {"quantity":-1,"symbol":"ABC","averagePrice":10}; 10 | setup: 
+  - Inputs: Call applySellToPosition with invalid input for validation condition: quantity > position.quantity. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":-1,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -729,7 +809,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateMarketValue validation exception** / calculateMarketValue
   - Scenario: Call calculateMarketValue with invalid input for validation condition: quantity <= 0.
@@ -777,7 +857,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyPriceMovement validation exception** / applyPriceMovement
   - Scenario: Call applyPriceMovement with invalid input for validation condition: price < 0.
@@ -825,7 +905,7 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateWeightedAveragePrice validation exception** / calculateWeightedAveragePrice
   - Scenario: Call calculateWeightedAveragePrice with invalid input for validation condition: existingQuantity < 0.
@@ -875,9 +955,25 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in pricing.js: tradeQuantity <= 0; Detected direct throw for validation condition: Trade quantity must be positive
 
+1 - **Deterministic example: hasSufficientCash return behaviour** / hasSufficientCash
+  - Scenario: Call hasSufficientCash with valid representative inputs.
+  - Inputs: Call hasSufficientCash with valid representative inputs. | args: 10; {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: false
+  - Expected calculation: throw guard cashBalance < 0 = false; impact = calculateTotalCashImpact(order, executionPrice, accountTier) = -103.5; guard impact >= 0 = false; result = cashBalance + impact >= 0 = 10 + -103.5 >= 0 = false
+  - Expected behaviour: Returns false.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals false.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
+
 1 - **Deterministic example: hasSufficientCash validation exception** / hasSufficientCash
   - Scenario: Call hasSufficientCash with invalid input for validation condition: cashBalance < 0.
-  - Inputs: Call hasSufficientCash with invalid input for validation condition: cashBalance < 0. | args: -1; 10; 10; 10 | setup: 
+  - Inputs: Call hasSufficientCash with invalid input for validation condition: cashBalance < 0. | args: -1; {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; 10; 10 | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -890,6 +986,22 @@ None identified.
   - Source: deterministic-test-data-builder
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: cashBalance < 0; Detected direct throw for validation condition: Cash balance cannot be negative
+
+1 - **Deterministic example: checkConcentrationLimit return behaviour** / checkConcentrationLimit
+  - Scenario: Call checkConcentrationLimit with valid representative inputs.
+  - Inputs: Call checkConcentrationLimit with valid representative inputs. | args: 10; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: false
+  - Expected calculation: throw guard orderValue < 0 || portfolioValue < 0 = false; throw guard maxPercent <= 0 || maxPercent > 100 = false; guard portfolioValue === 0 = false; result = (orderValue / portfolioValue) * 100 <= maxPercent = (10 / 10) * 100 <= 10 = false
+  - Expected behaviour: Returns false.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals false.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: checkConcentrationLimit validation exception** / checkConcentrationLimit
   - Scenario: Call checkConcentrationLimit with invalid input for validation condition: orderValue < 0 || portfolioValue < 0.
@@ -923,6 +1035,22 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: maxPercent <= 0 || maxPercent > 100; Detected direct throw for validation condition: Invalid concentration limit
 
+1 - **Deterministic example: calculateRiskScore return behaviour** / calculateRiskScore
+  - Scenario: Call calculateRiskScore with valid representative inputs.
+  - Inputs: Call calculateRiskScore with valid representative inputs. | args: 10; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 100
+  - Expected calculation: throw guard cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0 = false; exposure = portfolioValue + openOrderValue = 10 + 10 = 20; totalAssets = cashBalance + portfolioValue = 10 + 10 = 20; guard totalAssets === 0 = false; result = Math.round(100) = 100
+  - Expected behaviour: Returns 100.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 100.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
+
 1 - **Deterministic example: calculateRiskScore validation exception** / calculateRiskScore
   - Scenario: Call calculateRiskScore with invalid input for validation condition: cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0.
   - Inputs: Call calculateRiskScore with invalid input for validation condition: cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0. | args: -1; 10; 10 | setup: 
@@ -939,6 +1067,22 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0; Detected direct throw for validation condition: Risk inputs cannot be negative
 
+1 - **Deterministic example: calculateSettlementDate return behaviour** / calculateSettlementDate
+  - Scenario: Call calculateSettlementDate with valid representative inputs.
+  - Inputs: Call calculateSettlementDate with valid representative inputs. | args: 10; "UK" | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 12
+  - Expected calculation: throw guard tradeDayIndex < 0 = false; normalizedMarket = String(market || "").toUpperCase() = "UK"; guard normalizedMarket === "UK" = true; result = tradeDayIndex + 2 = 10 + 2 = 12
+  - Expected behaviour: Returns 12.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 12.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from settlement.js.; Execution path validated: Generated input reaches conditional return: normalizedMarket === "UK"
+
 1 - **Deterministic example: calculateSettlementDate validation exception** / calculateSettlementDate
   - Scenario: Call calculateSettlementDate with invalid input for validation condition: tradeDayIndex < 0.
   - Inputs: Call calculateSettlementDate with invalid input for validation condition: tradeDayIndex < 0. | args: -1; "UK" | setup: 
@@ -954,6 +1098,22 @@ None identified.
   - Source: deterministic-test-data-builder
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: tradeDayIndex < 0; Detected direct throw for validation condition: Trade day index cannot be negative
+
+1 - **Deterministic example: isSettlementDue return behaviour** / isSettlementDue
+  - Scenario: Call isSettlementDue with valid representative inputs.
+  - Inputs: Call isSettlementDue with valid representative inputs. | args: 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: true
+  - Expected calculation: throw guard currentDayIndex < 0 || settlementDayIndex < 0 = false; result = currentDayIndex >= settlementDayIndex = 10 >= 10 = true
+  - Expected behaviour: Returns true.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals true.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from settlement.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: isSettlementDue validation exception** / isSettlementDue
   - Scenario: Call isSettlementDue with invalid input for validation condition: currentDayIndex < 0 || settlementDayIndex < 0.
@@ -989,7 +1149,7 @@ None identified.
 
 1 - **Deterministic example: calculateSettlementCashAmount validation exception** / calculateSettlementCashAmount
   - Scenario: Call calculateSettlementCashAmount with invalid input for validation condition: executionPrice < 0 || charges < 0.
-  - Inputs: Call calculateSettlementCashAmount with invalid input for validation condition: executionPrice < 0 || charges < 0. | args: {"quantity":10,"side":"BUY"}; -1; [{"quantity":10,"side":"BUY"}] | setup: 
+  - Inputs: Call calculateSettlementCashAmount with invalid input for validation condition: executionPrice < 0 || charges < 0. | args: {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; -1; [{"quantity":10,"side":"BUY"}] | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -1003,15 +1163,33 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: executionPrice < 0 || charges < 0; Detected direct throw for validation condition: Amount cannot be negative
 
+1 - **Deterministic example: applyExecutionToPosition return behaviour** / applyExecutionToPosition
+  - Scenario: Call applyExecutionToPosition with valid representative inputs.
+  - Inputs: Call applyExecutionToPosition with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; {"id":"id-1","side":"BUY","type":"STANDARD","status":"ACTIVE","symbol":"ABC","ticker":"ABC","quantity":10,"limitPrice":10,"price":10,"amount":100,"market":"UK","exchange":"LSE","country":"UK","currency":"GBP","settlementCurrency":"GBP","instrumentCurrency":"GBP"}; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: {"symbol":"ABC","quantity":20,"averagePrice":10}
+  - Expected calculation: side = String(order.side || "").toUpperCase() = "BUY"; guard side === "BUY" = true; result = applyBuyToPosition(position, order.quantity, executionPrice) = {"symbol":"ABC","quantity":20,"averagePrice":10}
+  - Expected behaviour: Returns [object Object].
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals [object Object].
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated input reaches conditional return: side === "BUY"
+
 1 - **Deterministic example: calculatePositionReport return behaviour** / calculatePositionReport
   - Scenario: Call calculatePositionReport with valid representative inputs.
-  - Inputs: Call calculatePositionReport with valid representative inputs. | args: {"quantity":10,"averagePrice":10,"symbol":"ABC"}; 10 | setup: 
+  - Inputs: Call calculatePositionReport with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; 10 | setup: 
   - Expected kind: return
   - Expected value available: Yes
   - Expected value: {"symbol":"ABC","quantity":10,"averagePrice":10,"marketPrice":10,"marketValue":100,"unrealisedPnl":0,"pnlPercent":0}
   - Expected calculation: marketValue = position.quantity * marketPrice = 10 * 10 = 100; unrealisedPnl = calculateUnrealisedPnl(position, marketPrice) = 0; pnlPercent = position.averagePrice === 0
     ? 0
-    : (unrealisedPnl / (position.quantity * position.averagePrice)) * 100 = (unrealisedPnl / (position.quantity * position.averagePrice)) * 100 = (0 / (10 * 10)) * 100 = 0; result = {
+    : (unrealisedPnl / (position.quantity * position.averagePrice)) * 100 = 10 === 0
+    ? 0
+    : (0 / (10 * 10)) * 100 = 0; result = {
     symbol: position.symbol,
     quantity: position.quantity,
     averagePrice: position.averagePrice,
@@ -1027,11 +1205,27 @@ None identified.
   - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
   - Source: deterministic-test-data-builder
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: applyCorporateActionToPosition return behaviour** / applyCorporateActionToPosition
+  - Scenario: Call applyCorporateActionToPosition with valid representative inputs.
+  - Inputs: Call applyCorporateActionToPosition with valid representative inputs. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; {"type":"STOCK_SPLIT","numerator":10,"denominator":10,"rightsRatio":10,"subscriptionPrice":10} | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: {"symbol":"ABC","quantity":10,"averagePrice":10}
+  - Expected calculation: throw guard !corporateAction = false; type = String(corporateAction.type || "").toUpperCase() = "STOCK_SPLIT"; guard type === "STOCK_SPLIT" = true; result = applyStockSplit(position, corporateAction.numerator, corporateAction.denominator) = {"symbol":"ABC","quantity":10,"averagePrice":10}
+  - Expected behaviour: Returns [object Object].
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals [object Object].
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated input reaches conditional return: type === "STOCK_SPLIT"
 
 1 - **Deterministic example: applyCorporateActionToPosition validation exception** / applyCorporateActionToPosition
   - Scenario: Call applyCorporateActionToPosition with invalid input for validation condition: !corporateAction.
-  - Inputs: Call applyCorporateActionToPosition with invalid input for validation condition: !corporateAction. | args: 10; null | setup: 
+  - Inputs: Call applyCorporateActionToPosition with invalid input for validation condition: !corporateAction. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; null | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -1047,7 +1241,7 @@ None identified.
 
 1 - **Deterministic example: calculateIncomeEvent validation exception** / calculateIncomeEvent
   - Scenario: Call calculateIncomeEvent with invalid input for validation condition: !incomeEvent.
-  - Inputs: Call calculateIncomeEvent with invalid input for validation condition: !incomeEvent. | args: 10; null | setup: 
+  - Inputs: Call calculateIncomeEvent with invalid input for validation condition: !incomeEvent. | args: {"id":"id-1","symbol":"ABC","ticker":"ABC","quantity":10,"averagePrice":10,"price":10,"value":100,"marketValue":100,"currency":"GBP"}; null | setup: 
   - Expected kind: exception
   - Expected value available: No
   - Expected value: Not specified.
@@ -1075,7 +1269,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyStockSplit validation exception** / applyStockSplit
   - Type: unit
@@ -1135,7 +1329,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from corporateActions.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyRightsIssue validation exception** / applyRightsIssue
   - Type: unit
@@ -1157,6 +1351,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in corporateActions.js: rightsRatio < 0 || subscriptionPrice < 0; Detected direct throw for validation condition: Rights issue inputs cannot be negative
 
+1 - **Deterministic example: calculateCommission return behaviour** / calculateCommission
+  - Type: unit
+  - Scenario: Call calculateCommission with valid representative inputs.
+  - Expected: Returns 3.
+  - Test examples: calculatecommission-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input reaches final return.
+
 1 - **Deterministic example: calculateCommission validation exception** / calculateCommission
   - Type: unit
   - Scenario: Call calculateCommission with invalid input for validation condition: tradeValue < 0.
@@ -1166,6 +1370,16 @@ None identified.
   - Confidence: high
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: tradeValue < 0; Detected direct throw for validation condition: Trade value cannot be negative
+
+1 - **Deterministic example: calculateStampDuty return behaviour** / calculateStampDuty
+  - Type: unit
+  - Scenario: Call calculateStampDuty with valid representative inputs.
+  - Expected: Returns 0.05.
+  - Test examples: calculatestampduty-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated input reaches conditional return: normalizedMarket === "UK"
 
 1 - **Deterministic example: calculateStampDuty validation exception** / calculateStampDuty
   - Type: unit
@@ -1185,7 +1399,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated input reaches conditional return: String(settlementCurrency).toUpperCase() === String(instrumentCurrency).toUpperCase()
 
 1 - **Deterministic example: calculateFxFee validation exception** / calculateFxFee
   - Type: unit
@@ -1215,7 +1429,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Type: unit
@@ -1257,6 +1471,36 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in orders.js: order.limitPrice !== undefined && order.limitPrice < 0; Detected direct throw for validation condition: Limit price cannot be negative
 
+1 - **Deterministic example: calculateOrderNotional return behaviour** / calculateOrderNotional
+  - Type: unit
+  - Scenario: Call calculateOrderNotional with valid representative inputs.
+  - Expected: Returns 100.
+  - Test examples: calculateordernotional-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: calculateOrderCharges return behaviour** / calculateOrderCharges
+  - Type: unit
+  - Scenario: Call calculateOrderCharges with valid representative inputs.
+  - Expected: Returns 3.5.
+  - Test examples: calculateordercharges-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: calculateTotalCashImpact return behaviour** / calculateTotalCashImpact
+  - Type: unit
+  - Scenario: Call calculateTotalCashImpact with valid representative inputs.
+  - Expected: Returns -103.5.
+  - Test examples: calculatetotalcashimpact-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated input reaches conditional return: side === "BUY"
+
 1 - **Deterministic example: valuePosition return behaviour** / valuePosition
   - Type: unit
   - Scenario: Call valuePosition with valid representative inputs.
@@ -1265,7 +1509,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: valuePosition validation exception** / valuePosition
   - Type: unit
@@ -1285,7 +1529,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateUnrealisedPnl validation exception** / calculateUnrealisedPnl
   - Type: unit
@@ -1305,7 +1549,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyBuyToPosition validation exception** / applyBuyToPosition
   - Type: unit
@@ -1325,7 +1569,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from portfolio.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applySellToPosition validation exception** / applySellToPosition
   - Type: unit
@@ -1365,7 +1609,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateMarketValue validation exception** / calculateMarketValue
   - Type: unit
@@ -1395,7 +1639,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: applyPriceMovement validation exception** / applyPriceMovement
   - Type: unit
@@ -1425,7 +1669,7 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from pricing.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: calculateWeightedAveragePrice validation exception** / calculateWeightedAveragePrice
   - Type: unit
@@ -1457,6 +1701,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in pricing.js: tradeQuantity <= 0; Detected direct throw for validation condition: Trade quantity must be positive
 
+1 - **Deterministic example: hasSufficientCash return behaviour** / hasSufficientCash
+  - Type: unit
+  - Scenario: Call hasSufficientCash with valid representative inputs.
+  - Expected: Returns false.
+  - Test examples: hassufficientcash-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
+
 1 - **Deterministic example: hasSufficientCash validation exception** / hasSufficientCash
   - Type: unit
   - Scenario: Call hasSufficientCash with invalid input for validation condition: cashBalance < 0.
@@ -1466,6 +1720,16 @@ None identified.
   - Confidence: high
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: cashBalance < 0; Detected direct throw for validation condition: Cash balance cannot be negative
+
+1 - **Deterministic example: checkConcentrationLimit return behaviour** / checkConcentrationLimit
+  - Type: unit
+  - Scenario: Call checkConcentrationLimit with valid representative inputs.
+  - Expected: Returns false.
+  - Test examples: checkconcentrationlimit-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: checkConcentrationLimit validation exception** / checkConcentrationLimit
   - Type: unit
@@ -1487,6 +1751,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: maxPercent <= 0 || maxPercent > 100; Detected direct throw for validation condition: Invalid concentration limit
 
+1 - **Deterministic example: calculateRiskScore return behaviour** / calculateRiskScore
+  - Type: unit
+  - Scenario: Call calculateRiskScore with valid representative inputs.
+  - Expected: Returns 100.
+  - Test examples: calculateriskscore-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from risk.js.; Execution path validated: Generated valid input reaches final return.
+
 1 - **Deterministic example: calculateRiskScore validation exception** / calculateRiskScore
   - Type: unit
   - Scenario: Call calculateRiskScore with invalid input for validation condition: cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0.
@@ -1497,6 +1771,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in risk.js: cashBalance < 0 || portfolioValue < 0 || openOrderValue < 0; Detected direct throw for validation condition: Risk inputs cannot be negative
 
+1 - **Deterministic example: calculateSettlementDate return behaviour** / calculateSettlementDate
+  - Type: unit
+  - Scenario: Call calculateSettlementDate with valid representative inputs.
+  - Expected: Returns 12.
+  - Test examples: calculatesettlementdate-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from settlement.js.; Execution path validated: Generated input reaches conditional return: normalizedMarket === "UK"
+
 1 - **Deterministic example: calculateSettlementDate validation exception** / calculateSettlementDate
   - Type: unit
   - Scenario: Call calculateSettlementDate with invalid input for validation condition: tradeDayIndex < 0.
@@ -1506,6 +1790,16 @@ None identified.
   - Confidence: high
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: tradeDayIndex < 0; Detected direct throw for validation condition: Trade day index cannot be negative
+
+1 - **Deterministic example: isSettlementDue return behaviour** / isSettlementDue
+  - Type: unit
+  - Scenario: Call isSettlementDue with valid representative inputs.
+  - Expected: Returns true.
+  - Test examples: issettlementdue-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from settlement.js.; Execution path validated: Generated valid input reaches final return.
 
 1 - **Deterministic example: isSettlementDue validation exception** / isSettlementDue
   - Type: unit
@@ -1537,6 +1831,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: executionPrice < 0 || charges < 0; Detected direct throw for validation condition: Amount cannot be negative
 
+1 - **Deterministic example: applyExecutionToPosition return behaviour** / applyExecutionToPosition
+  - Type: unit
+  - Scenario: Call applyExecutionToPosition with valid representative inputs.
+  - Expected: Returns [object Object].
+  - Test examples: applyexecutiontoposition-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated input reaches conditional return: side === "BUY"
+
 1 - **Deterministic example: calculatePositionReport return behaviour** / calculatePositionReport
   - Type: unit
   - Scenario: Call calculatePositionReport with valid representative inputs.
@@ -1545,7 +1849,17 @@ None identified.
   - Source: deterministic-test-data-builder
   - Confidence: high
   - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
-  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input reaches final return.
+
+1 - **Deterministic example: applyCorporateActionToPosition return behaviour** / applyCorporateActionToPosition
+  - Type: unit
+  - Scenario: Call applyCorporateActionToPosition with valid representative inputs.
+  - Expected: Returns [object Object].
+  - Test examples: applycorporateactiontoposition-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated input reaches conditional return: type === "STOCK_SPLIT"
 
 1 - **Deterministic example: applyCorporateActionToPosition validation exception** / applyCorporateActionToPosition
   - Type: unit

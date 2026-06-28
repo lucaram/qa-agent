@@ -81,7 +81,7 @@ export default class DeterministicValueBuilder {
       Object.keys(shape).length > 0 ||
       this.shouldBeObjectParameter(name, context)
     ) {
-      return Object.keys(shape).length ? shape : this.defaultObject();
+      return Object.keys(shape).length ? shape : this.defaultObject(name);
     }
 
     return this.buildValidScalarValue({
@@ -92,7 +92,10 @@ export default class DeterministicValueBuilder {
   }
 
   buildObjectShapeForRoot(rootName, context = {}) {
-    const object = {};
+    const object = {
+      ...this.buildSemanticObjectShape(rootName, context)
+    };
+
     const paths = this.extractKnownPaths(context).filter((path) =>
       this.sameName(path.root, rootName)
     );
@@ -123,6 +126,99 @@ export default class DeterministicValueBuilder {
           context
         });
       }
+    }
+
+    return object;
+  }
+
+  buildSemanticObjectShape(rootName, context = {}) {
+    const name = String(rootName || "").toLowerCase();
+    const tokens = this.nameTokens(name);
+    const object = {};
+
+    if (tokens.has("order")) {
+      return {
+        id: "id-1",
+        side: this.extractAllowedStringValueForName("side", context) || "BUY",
+        type: this.extractAllowedStringValueForName("type", context) || "STANDARD",
+        status: this.extractAllowedStringValueForName("status", context) || "ACTIVE",
+        symbol: "ABC",
+        ticker: "ABC",
+        quantity: 10,
+        limitPrice: 10,
+        price: 10,
+        amount: 100,
+        market: "UK",
+        exchange: "LSE",
+        country: "UK",
+        currency: "GBP",
+        settlementCurrency: "GBP",
+        instrumentCurrency: "GBP"
+      };
+    }
+
+    if (tokens.has("position")) {
+      return {
+        id: "id-1",
+        symbol: "ABC",
+        ticker: "ABC",
+        quantity: 10,
+        averagePrice: 10,
+        price: 10,
+        value: 100,
+        marketValue: 100,
+        currency: "GBP"
+      };
+    }
+
+    if (tokens.has("account")) {
+      return {
+        id: "id-1",
+        accountId: "account-1",
+        type: "STANDARD",
+        status: "ACTIVE",
+        balance: 1000,
+        cashBalance: 1000,
+        currency: "GBP"
+      };
+    }
+
+    if (tokens.has("portfolio")) {
+      return {
+        id: "id-1",
+        portfolioId: "portfolio-1",
+        value: 1000,
+        totalValue: 1000,
+        marketValue: 1000,
+        cashBalance: 1000,
+        currency: "GBP"
+      };
+    }
+
+    if (tokens.has("client") || tokens.has("customer") || tokens.has("user")) {
+      return {
+        id: "id-1",
+        clientId: "client-1",
+        name: "value",
+        email: "user@example.com",
+        status: "ACTIVE",
+        type: "STANDARD",
+        country: "UK"
+      };
+    }
+
+    if (tokens.has("instrument") || tokens.has("asset") || tokens.has("security")) {
+      return {
+        id: "id-1",
+        symbol: "ABC",
+        ticker: "ABC",
+        type: "STANDARD",
+        status: "ACTIVE",
+        currency: "GBP",
+        market: "UK",
+        exchange: "LSE",
+        price: 10
+      };
     }
 
     return object;
@@ -265,8 +361,10 @@ export default class DeterministicValueBuilder {
 
     if (
       lowered.includes("boolean") ||
-      lowered.startsWith("is") ||
-      lowered.startsWith("has")
+      loweredName.startsWith("is") ||
+      loweredName.startsWith("has") ||
+      loweredName.startsWith("can") ||
+      loweredName.startsWith("should")
     ) {
       return true;
     }
@@ -306,6 +404,7 @@ export default class DeterministicValueBuilder {
       tokens.has("cost") ||
       tokens.has("fee") ||
       tokens.has("charge") ||
+      tokens.has("charges") ||
       tokens.has("tax") ||
       tokens.has("dividend") ||
       tokens.has("limit") ||
@@ -313,12 +412,22 @@ export default class DeterministicValueBuilder {
       tokens.has("minimum") ||
       tokens.has("maximum") ||
       tokens.has("min") ||
-      tokens.has("max")
+      tokens.has("max") ||
+      tokens.has("exposure") ||
+      tokens.has("asset") ||
+      tokens.has("assets")
     ) {
       return 100;
     }
 
-    if (tokens.has("balance")) return 1000;
+    if (
+      tokens.has("balance") ||
+      tokens.has("cash") ||
+      tokens.has("capital") ||
+      tokens.has("funds")
+    ) {
+      return 1000;
+    }
 
     return 10;
   }
@@ -327,16 +436,43 @@ export default class DeterministicValueBuilder {
     const tokens = this.nameTokens(name);
 
     if (tokens.has("currency")) return "GBP";
+    if (tokens.has("market")) return "UK";
+    if (tokens.has("country")) return "UK";
+    if (tokens.has("exchange")) return "LSE";
+    if (tokens.has("locale")) return "en-GB";
+
     if (tokens.has("email")) return "user@example.com";
     if (tokens.has("date")) return "2026-01-01";
+
     if (tokens.has("side")) return "BUY";
     if (tokens.has("direction")) return "BUY";
+    if (tokens.has("action")) return "BUY";
+
     if (tokens.has("type")) return "STANDARD";
     if (tokens.has("status")) return "ACTIVE";
+    if (tokens.has("state")) return "ACTIVE";
+    if (tokens.has("tier")) return "STANDARD";
+    if (tokens.has("level")) return "STANDARD";
+
     if (tokens.has("symbol")) return "ABC";
+    if (tokens.has("ticker")) return "ABC";
     if (tokens.has("code")) return "ABC";
-    if (tokens.has("name")) return "value";
+    if (tokens.has("isin")) return "GB0000000001";
+    if (tokens.has("sku")) return "SKU-1";
+
+    if (tokens.has("account")) return "account-1";
+    if (tokens.has("portfolio")) return "portfolio-1";
+    if (tokens.has("position")) return "position-1";
+    if (tokens.has("order")) return "order-1";
+    if (tokens.has("client")) return "client-1";
+    if (tokens.has("customer")) return "customer-1";
+    if (tokens.has("user")) return "user-1";
+    if (tokens.has("instrument")) return "instrument-1";
+
     if (tokens.has("id")) return "id-1";
+    if (tokens.has("name")) return "value";
+    if (tokens.has("description")) return "description";
+    if (tokens.has("label")) return "label";
 
     return "value";
   }
@@ -455,9 +591,43 @@ export default class DeterministicValueBuilder {
     if (this.scalarNameLooksNumeric(name)) return false;
     if (this.scalarNameLooksString(name)) return false;
 
+    if (this.semanticNameLooksObject(name)) return true;
+
     return this.extractKnownPaths(context).some((path) =>
       this.sameName(path.root, parameterName)
     );
+  }
+
+  semanticNameLooksObject(name) {
+    const tokens = this.nameTokens(name);
+
+    const objectTokens = new Set([
+      "order",
+      "position",
+      "account",
+      "portfolio",
+      "client",
+      "customer",
+      "user",
+      "instrument",
+      "asset",
+      "security",
+      "record",
+      "entity",
+      "item",
+      "product",
+      "request",
+      "response",
+      "payload",
+      "config",
+      "settings",
+      "options",
+      "context",
+      "event",
+      "transaction"
+    ]);
+
+    return [...tokens].some((token) => objectTokens.has(token));
   }
 
   scalarNameLooksNumeric(name) {
@@ -470,6 +640,7 @@ export default class DeterministicValueBuilder {
       "amount",
       "value",
       "balance",
+      "cash",
       "total",
       "index",
       "day",
@@ -482,6 +653,7 @@ export default class DeterministicValueBuilder {
       "size",
       "length",
       "fee",
+      "fees",
       "cost",
       "charge",
       "charges",
@@ -497,7 +669,12 @@ export default class DeterministicValueBuilder {
       "maximum",
       "min",
       "max",
-      "per"
+      "per",
+      "exposure",
+      "asset",
+      "assets",
+      "capital",
+      "funds"
     ]);
 
     return [...tokens].some((token) => numericTokens.has(token));
@@ -509,15 +686,36 @@ export default class DeterministicValueBuilder {
     const stringTokens = new Set([
       "currency",
       "symbol",
+      "ticker",
       "code",
       "name",
       "email",
       "status",
+      "state",
       "type",
       "side",
       "direction",
+      "action",
       "id",
-      "date"
+      "date",
+      "market",
+      "exchange",
+      "country",
+      "locale",
+      "tier",
+      "level",
+      "account",
+      "portfolio",
+      "position",
+      "order",
+      "client",
+      "customer",
+      "user",
+      "instrument",
+      "isin",
+      "sku",
+      "description",
+      "label"
     ]);
 
     return [...tokens].some((token) => stringTokens.has(token));
@@ -553,6 +751,8 @@ export default class DeterministicValueBuilder {
     const sources = [
       context.condition,
       context.body,
+      context.source,
+      context.returnExpression,
       ...(Array.isArray(context.conditions) ? context.conditions : [])
     ].filter(Boolean);
 
@@ -601,6 +801,8 @@ export default class DeterministicValueBuilder {
     const sources = [
       context.condition,
       context.body,
+      context.source,
+      context.returnExpression,
       ...(Array.isArray(context.conditions) ? context.conditions : [])
     ].filter(Boolean);
 
@@ -700,10 +902,12 @@ export default class DeterministicValueBuilder {
     current[propertyPath[propertyPath.length - 1]] = value;
   }
 
-  defaultObject() {
+  defaultObject(name = "") {
     return {
-      id: "id-1",
+      id: `${String(name || "entity").toLowerCase()}-1`,
       name: "value",
+      type: "STANDARD",
+      status: "ACTIVE",
       value: 100
     };
   }
