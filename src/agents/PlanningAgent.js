@@ -536,58 +536,48 @@ rewriteBodyForDestructuredParams(body, aliases = {}) {
 
   extractFunctionModel(functionName, { repoAnalysis, projectContext }) {
   const file = this.findFileForApi(functionName, repoAnalysis);
+
   const source = this.extractFunctionSource(
     functionName,
     repoAnalysis,
     projectContext
   );
 
-  if (!source) return null;
+  if (!source) {
+    return null;
+  }
 
   const rawParams = this.extractFunctionParams(functionName, source);
   const body = this.extractFunctionBody(source);
 
-  if (!rawParams.length || !body) return null;
+  if (!rawParams.length || !body) {
+    return null;
+  }
 
   const destructuringModel = this.normaliseFunctionParameters(rawParams);
+
+  const rewrittenBody = this.rewriteBodyForDestructuredParams(
+    body,
+    destructuringModel.parameterAliases
+  );
 
   return {
     name: functionName,
     file,
     source,
+
     params: destructuringModel.params,
     rawParams,
     destructuredParams: destructuringModel.destructuredParams,
     parameterAliases: destructuringModel.parameterAliases,
-    body: this.rewriteBodyForDestructuredParams(
-      body,
-      destructuringModel.parameterAliases
-    ),
+
     originalBody: body,
-    assignments: this.extractAssignments(
-      this.rewriteBodyForDestructuredParams(
-        body,
-        destructuringModel.parameterAliases
-      )
-    ),
-    returnExpression: this.extractReturnExpression(
-      this.rewriteBodyForDestructuredParams(
-        body,
-        destructuringModel.parameterAliases
-      )
-    ),
-    throwStatements: this.extractThrowStatements(
-      this.rewriteBodyForDestructuredParams(
-        body,
-        destructuringModel.parameterAliases
-      )
-    ),
-    validationConditions: this.extractValidationConditions(
-      this.rewriteBodyForDestructuredParams(
-        body,
-        destructuringModel.parameterAliases
-      )
-    )
+    body: rewrittenBody,
+
+    assignments: this.extractAssignments(rewrittenBody),
+    returnExpression: this.extractReturnExpression(rewrittenBody),
+    throwStatements: this.extractThrowStatements(rewrittenBody),
+    validationConditions: this.extractValidationConditions(rewrittenBody)
   };
 }
 
@@ -1011,52 +1001,65 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
   };
 }
 
-  evaluateExpression(expression, env, context, stack) {
-  const expr = String(expression || "").trim();
+  evaluateExpression(expression, env, context, stack = new Set()) {
+  const expr = String(expression ?? "").trim();
 
-  if (!expr) return { success: false, reason: "Empty expression." };
-
-  const conditionalResult = this.evaluateConditionalExpression(expr, env, context, stack);
-  if (conditionalResult.success) return conditionalResult;
-
-  const objectResult = this.evaluateObjectExpression(expr, env, context, stack);
-  if (objectResult.success) return objectResult;
-
-  const memberResult = this.evaluateMemberExpression(expr, env);
-  if (memberResult.success) return memberResult;
-
-  const stringResult = this.evaluateStringExpression(expr);
-  if (stringResult.success) return stringResult;
-
-  const booleanResult = this.evaluateBooleanLiteralExpression(expr);
-  if (booleanResult.success) return booleanResult;
-
-  const reduceResult = this.evaluateReduceExpression(expr, env, context, stack);
-  if (reduceResult.success) return reduceResult;
-
-  const callResult = this.evaluateFunctionCallExpression(expr, env, context, stack);
-  if (callResult.success) return callResult;
-
-  const arithmeticResult = this.evaluateArithmeticExpression(expr, env);
-  if (arithmeticResult.success) return arithmeticResult;
-
-  const literalResult = this.evaluateLiteralExpression(expr);
-  if (literalResult.success) return literalResult;
-
-  const resolved = this.resolveValue(expr, env);
-
-  if (resolved !== undefined) {
+  if (!expr) {
     return {
-      success: true,
-      value: resolved,
-      description: `${expr} = ${JSON.stringify(resolved)}`
+      success: false,
+      reason: "Empty expression."
     };
   }
 
-  return {
+  const evaluators = [
+    () => this.evaluateConditionalExpression(expr, env, context, stack),
+    () => this.evaluateObjectExpression(expr, env, context, stack),
+    () => this.evaluateMemberExpression(expr, env),
+    () => this.evaluateStringExpression(expr),
+    () => this.evaluateBooleanLiteralExpression(expr),
+    () => this.evaluateReduceExpression(expr, env, context, stack),
+    () => this.evaluateFunctionCallExpression(expr, env, context, stack),
+
+    // Resolve variables before trying arithmetic.
+    () => {
+      const resolved = this.resolveValue(expr, env);
+
+      if (resolved === undefined) {
+        return {
+          success: false,
+          reason: `Identifier '${expr}' not found`
+        };
+      }
+
+      return {
+        success: true,
+        value: resolved,
+        description: `${expr} = ${this.formatValueForDescription(resolved)}`
+      };
+    },
+
+    () => this.evaluateArithmeticExpression(expr, env),
+    () => this.evaluateLiteralExpression(expr)
+  ];
+
+  let lastFailure = {
     success: false,
     reason: `Unsupported expression: ${expr}`
   };
+
+  for (const evaluator of evaluators) {
+    const result = evaluator();
+
+    if (result?.success) {
+      return result;
+    }
+
+    if (result?.reason) {
+      lastFailure = result;
+    }
+  }
+
+  return lastFailure;
 }
 
   evaluateReduceExpression(expression, env) {
@@ -1115,55 +1118,178 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     .trim()
     .match(/^([A-Za-z_$][\w$]*)\s*\(([\s\S]*)\)$/);
 
-  if (!match) return { success: false };
+  if (!match) {
+    return { success: false };
+  }
 
   const functionName = match[1];
   const argExpressions = this.splitTopLevelArguments(match[2]);
+
+  console.log(`\n[DET] Calling ${functionName}(${argExpressions.join(", ")})`);
+
   const functionModel = this.extractFunctionModel(functionName, context);
 
   if (!functionModel) {
+    console.log(`[DET] ❌ Function model not found: ${functionName}`);
+
     return {
       success: false,
       reason: `Function model not found for ${functionName}.`
     };
   }
 
+  if (stack.has(functionName)) {
+    console.log(`[DET] ❌ Recursive call detected: ${functionName}`);
+
+    return {
+      success: false,
+      reason: `Recursive call detected: ${functionName}`
+    };
+  }
+
   const childEnv = {};
 
-  for (let i = 0; i < functionModel.params.length; i++) {
+  const paramCount = Math.max(
+    functionModel.params.length,
+    argExpressions.length
+  );
+
+  for (let i = 0; i < paramCount; i++) {
     const param = functionModel.params[i];
     const argExpression = argExpressions[i];
 
+    if (!param) {
+      continue;
+    }
+
     if (argExpression === undefined) {
+      if (env[param] !== undefined) {
+        childEnv[param] = env[param];
+
+        console.log(
+          `[DET]   ${param} <- inherited ${JSON.stringify(childEnv[param])}`
+        );
+
+        continue;
+      }
+
+      console.log(
+        `[DET] ❌ Missing argument ${i + 1} for ${functionName}`
+      );
+
       return {
         success: false,
         reason: `Missing argument ${i + 1} for ${functionName}.`
       };
     }
 
-    const evaluatedArg = this.evaluateExpression(
+    const evaluated = this.evaluateExpression(
       argExpression,
       env,
       context,
       stack
     );
 
-    if (evaluatedArg.success) {
-      childEnv[param] = evaluatedArg.value;
+    if (evaluated.success) {
+      childEnv[param] = evaluated.value;
+
+      console.log(
+        `[DET]   ${param} = ${argExpression} ->`,
+        evaluated.value
+      );
+
       continue;
     }
 
-    const rawValue = this.resolveValue(argExpression, env);
+    console.log(
+      `[DET]   evaluateExpression FAILED for "${argExpression}"`,
+      evaluated.reason
+    );
 
-    if (rawValue === undefined) {
-      return {
-        success: false,
-        reason: `Could not evaluate argument ${argExpression}.`
-      };
+    const resolved = this.resolveValue(argExpression, env);
+
+    if (resolved !== undefined) {
+      childEnv[param] = resolved;
+
+      console.log(
+        `[DET]   ${param} resolved from env ->`,
+        resolved
+      );
+
+      continue;
     }
 
-    childEnv[param] = rawValue;
+    const literal = this.evaluateLiteralExpression(argExpression);
+
+    if (literal.success) {
+      childEnv[param] = literal.value;
+
+      console.log(
+        `[DET]   ${param} literal ->`,
+        literal.value
+      );
+
+      continue;
+    }
+
+    console.log(
+      `[DET] ❌ Could not evaluate argument "${argExpression}" for ${functionName}`
+    );
+
+    return {
+      success: false,
+      reason: `Could not evaluate argument '${argExpression}' when calling ${functionName}.`
+    };
   }
+
+  //
+  // Rebuild destructured parameters
+  //
+  if (Array.isArray(functionModel.destructuredParams)) {
+    for (const descriptor of functionModel.destructuredParams) {
+
+      if (descriptor.type === "object") {
+        const object = {};
+
+        for (const property of descriptor.properties) {
+          const lookup = property.alias || property.name;
+
+          if (childEnv[lookup] !== undefined) {
+            object[property.name] = childEnv[lookup];
+          }
+        }
+
+        childEnv[descriptor.syntheticName] = object;
+
+        console.log(
+          `[DET]   rebuilt object ${descriptor.syntheticName}:`,
+          object
+        );
+      }
+
+      if (descriptor.type === "array") {
+        const array = [];
+
+        for (let j = 0; j < descriptor.items.length; j++) {
+          const item = descriptor.items[j];
+
+          array[j] =
+            item && childEnv[item] !== undefined
+              ? childEnv[item]
+              : undefined;
+        }
+
+        childEnv[descriptor.syntheticName] = array;
+
+        console.log(
+          `[DET]   rebuilt array ${descriptor.syntheticName}:`,
+          array
+        );
+      }
+    }
+  }
+
+  console.log(`[DET] Executing ${functionName} with env:`, childEnv);
 
   const result = this.evaluateFunctionModel(
     functionModel,
@@ -1172,12 +1298,25 @@ evaluateNestedStatement(statement, env, context, stack, steps) {
     stack
   );
 
-  if (!result.success) return result;
+  if (!result.success) {
+    console.log(
+      `[DET] ❌ ${functionName} FAILED:`,
+      result.reason
+    );
+
+    return result;
+  }
+
+  console.log(
+    `[DET] ✅ ${functionName} returned:`,
+    result.value
+  );
 
   return {
     success: true,
     value: result.value,
-description: `${functionName}(${argExpressions.join(", ")}) = ${this.formatValueForDescription(result.value)}`  };
+    description: `${functionName}(${argExpressions.join(", ")}) = ${this.formatValueForDescription(result.value)}`
+  };
 }
 
   evaluateArithmeticExpression(expression, env) {
@@ -1500,6 +1639,140 @@ isLikelyExecutableExpressionStatement(expression) {
   return /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?\s*\(/.test(expr);
 }
 
+skipWhitespaceAndComments(text, index) {
+  let i = index;
+
+  while (i < text.length) {
+    const whitespace = text.slice(i).match(/^\s+/);
+
+    if (whitespace) {
+      i += whitespace[0].length;
+      continue;
+    }
+
+    if (text.startsWith("//", i)) {
+      const newlineIndex = text.indexOf("\n", i + 2);
+      i = newlineIndex === -1 ? text.length : newlineIndex + 1;
+      continue;
+    }
+
+    if (text.startsWith("/*", i)) {
+      const commentEnd = text.indexOf("*/", i + 2);
+      i = commentEnd === -1 ? text.length : commentEnd + 2;
+      continue;
+    }
+
+    break;
+  }
+
+  return i;
+}
+
+parseVariableDeclaration(text, declarationStart) {
+  const assignmentIndex = this.findTopLevelCharacterFrom(text, "=", declarationStart);
+
+  if (assignmentIndex === -1) return null;
+
+  const rawName = text.slice(declarationStart, assignmentIndex).trim();
+
+  if (
+    rawName.startsWith("{") ||
+    rawName.startsWith("[")
+  ) {
+    return null;
+  }
+
+  const nameMatch = rawName.match(/^([A-Za-z_$][\w$]*)$/);
+
+  if (!nameMatch) return null;
+
+  const expressionStart = assignmentIndex + 1;
+  const expressionEnd = this.findTopLevelSemicolon(text, expressionStart);
+
+  if (expressionEnd === -1) return null;
+
+  return {
+    name: nameMatch[1],
+    expression: text.slice(expressionStart, expressionEnd).trim(),
+    endIndex: expressionEnd
+  };
+}
+
+pushIfStatementFromNested(statements, condition, nestedStatements) {
+  const throwStatement = nestedStatements.find((statement) =>
+    statement.type === "throw"
+  );
+
+  if (throwStatement) {
+    statements.push({
+      type: "if-throw",
+      condition,
+      message: throwStatement.message
+    });
+
+    return;
+  }
+
+  const returnStatement = nestedStatements.find((statement) =>
+    statement.type === "return"
+  );
+
+  if (returnStatement && nestedStatements.length === 1) {
+    statements.push({
+      type: "if-return",
+      condition,
+      returnExpression: returnStatement.expression
+    });
+
+    return;
+  }
+
+  statements.push({
+    type: "if-branch",
+    condition,
+    statements: nestedStatements
+  });
+}
+
+findTopLevelCharacterFrom(text, targetCharacter, startIndex = 0) {
+  let depth = 0;
+  let inString = false;
+  let stringChar = "";
+
+  for (let i = startIndex; i < text.length; i++) {
+    const char = text[i];
+
+    if (inString) {
+      if (char === "\\") {
+        i++;
+        continue;
+      }
+
+      if (char === stringChar) {
+        inString = false;
+        stringChar = "";
+      }
+
+      continue;
+    }
+
+    if (char === "'" || char === `"` || char === "`") {
+      inString = true;
+      stringChar = char;
+      continue;
+    }
+
+    if (char === "(" || char === "[" || char === "{") depth++;
+    if (char === ")" || char === "]" || char === "}") depth--;
+
+    if (depth === 0 && char === targetCharacter) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 extractExecutableStatements(body) {
   const text = String(body || "");
   const statements = [];
@@ -1508,107 +1781,146 @@ extractExecutableStatements(body) {
   let i = 0;
 
   while (i < text.length) {
-    const rest = text.slice(i);
+    i = this.skipWhitespaceAndComments(text, i);
 
-    const whitespace = rest.match(/^\s+/);
-    if (whitespace) {
-      i += whitespace[0].length;
-      continue;
-    }
+    if (i >= text.length) break;
 
-    const ifMatch = text.slice(i).match(/^if\s*\(([^)]*)\)\s*\{/);
+    const ifMatch = text.slice(i).match(/^if\s*\(/);
 
     if (ifMatch) {
-      const condition = ifMatch[1].trim();
-      const blockStart = text.indexOf("{", i);
-      const blockEnd = this.findMatchingBrace(text, blockStart);
+      const openParenIndex = text.indexOf("(", i);
+      const closeParenIndex = this.findMatchingParen(text, openParenIndex);
 
-      if (blockEnd === -1) break;
+      if (closeParenIndex === -1) {
+        i++;
+        continue;
+      }
+
+      const condition = text
+        .slice(openParenIndex + 1, closeParenIndex)
+        .trim();
+
+      let blockStart = this.skipWhitespaceAndComments(text, closeParenIndex + 1);
+
+      if (text[blockStart] !== "{") {
+        const singleStatementEnd = this.findTopLevelSemicolon(text, blockStart);
+
+        if (singleStatementEnd === -1) {
+          i = closeParenIndex + 1;
+          continue;
+        }
+
+        const singleStatementBody = text.slice(blockStart, singleStatementEnd + 1);
+        const nestedStatements = this.extractExecutableStatements(singleStatementBody);
+
+        this.pushIfStatementFromNested(statements, condition, nestedStatements);
+
+        i = singleStatementEnd + 1;
+        continue;
+      }
+
+      const blockEnd = this.findMatchingDelimiter(text, blockStart, "{", "}");
+
+      if (blockEnd === -1) {
+        i = closeParenIndex + 1;
+        continue;
+      }
 
       const blockBody = text.slice(blockStart + 1, blockEnd);
+      const nestedStatements = this.extractExecutableStatements(blockBody);
 
-      const throwMatch = blockBody.match(
-        /throw\s+new\s+Error\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/
-      );
-
-      if (throwMatch) {
-        statements.push({
-          type: "if-throw",
-          condition,
-          message: throwMatch[1]
-        });
-      }
-
-      const returnMatch = blockBody.match(/\breturn\s+([\s\S]+?);?\s*$/);
-
-      if (returnMatch && !throwMatch) {
-        statements.push({
-          type: "if-return",
-          condition,
-          returnExpression: returnMatch[1].replace(/;$/, "").trim()
-        });
-      }
+      this.pushIfStatementFromNested(statements, condition, nestedStatements);
 
       i = blockEnd + 1;
       continue;
     }
 
-    const assignmentMatch = text
+    const declarationMatch = text
       .slice(i)
-      .match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/);
+      .match(/^(?:const|let|var)\s+/);
 
-    if (assignmentMatch) {
-      const name = assignmentMatch[1];
-      const expressionStart = i + assignmentMatch[0].length;
-      const expressionEnd = this.findTopLevelSemicolon(text, expressionStart);
+    if (declarationMatch) {
+      const declarationStart = i + declarationMatch[0].length;
+      const assignmentInfo = this.parseVariableDeclaration(text, declarationStart);
 
-      if (expressionEnd === -1) break;
+      if (!assignmentInfo) {
+        const statementEnd = this.findTopLevelSemicolon(text, i);
+        i = statementEnd === -1 ? i + 1 : statementEnd + 1;
+        continue;
+      }
 
-      if (!assignmentNames.has(name)) {
-        assignmentNames.add(name);
+      if (!assignmentNames.has(assignmentInfo.name)) {
+        assignmentNames.add(assignmentInfo.name);
         statements.push({
           type: "assignment",
-          name,
-          expression: text.slice(expressionStart, expressionEnd).trim()
+          name: assignmentInfo.name,
+          expression: assignmentInfo.expression
         });
       }
 
-      i = expressionEnd + 1;
+      i = assignmentInfo.endIndex + 1;
       continue;
     }
 
-    const returnMatch = text.slice(i).match(/^return\s+/);
+    const returnMatch = text.slice(i).match(/^return\b/);
 
     if (returnMatch) {
       const expressionStart = i + returnMatch[0].length;
       const expressionEnd = this.findReturnExpressionEnd(text, expressionStart);
 
+      const expression = text
+        .slice(expressionStart, expressionEnd)
+        .replace(/;$/, "")
+        .trim();
+
       statements.push({
         type: "return",
-        expression: text.slice(expressionStart, expressionEnd).replace(/;$/, "").trim()
+        expression
       });
 
       i = expressionEnd + 1;
       continue;
     }
 
+const throwMatch = text.slice(i).match(/^throw\s+new\s+Error\s*\(/);
+
+if (throwMatch) {
+  const expressionEnd = this.findTopLevelSemicolon(text, i);
+
+  if (expressionEnd === -1) {
+    i++;
+    continue;
+  }
+
+  const expression = text.slice(i, expressionEnd).trim();
+  const messageMatch = expression.match(
+    /throw\s+new\s+Error\s*\(\s*["'`]([^"'`]+)["'`]\s*\)/
+  );
+
+  statements.push({
+    type: "throw",
+    message: messageMatch ? messageMatch[1] : "Error",
+    expression
+  });
+
+  i = expressionEnd + 1;
+  continue;
+}
+
     const expressionStatementEnd = this.findTopLevelSemicolon(text, i);
 
     if (expressionStatementEnd !== -1) {
       const expression = text.slice(i, expressionStatementEnd).trim();
 
-      if (
-        expression &&
-        this.isLikelyExecutableExpressionStatement(expression)
-      ) {
+      if (expression && this.isLikelyExecutableExpressionStatement(expression)) {
         statements.push({
           type: "expression",
           expression
         });
-
-        i = expressionStatementEnd + 1;
-        continue;
       }
+
+      i = expressionStatementEnd + 1;
+      continue;
     }
 
     i++;
@@ -1700,26 +2012,124 @@ evaluateObjectExpression(expression, env, context, stack) {
   const result = {};
   const entries = this.splitTopLevelArguments(inner);
 
-  for (const entry of entries) {
+  for (const rawEntry of entries) {
+    const entry = rawEntry.trim();
+
+    if (!entry) continue;
+
+    //
+    // Ignore spread operators for now.
+    //
+    if (entry.startsWith("...")) {
+      const spreadName = entry.slice(3).trim();
+      const spreadValue = this.resolveValue(spreadName, env);
+
+      if (
+        spreadValue &&
+        typeof spreadValue === "object" &&
+        !Array.isArray(spreadValue)
+      ) {
+        Object.assign(result, spreadValue);
+      }
+
+      continue;
+    }
+
     const colonIndex = this.findTopLevelCharacter(entry, ":");
 
-    if (colonIndex === -1) return { success: false };
+    //
+    // Shorthand property
+    //
+    if (colonIndex === -1) {
+      const propertyName = entry;
 
-    const rawKey = entry.slice(0, colonIndex).trim();
+      const shorthandResult = this.evaluateExpression(
+        propertyName,
+        env,
+        context,
+        stack
+      );
+
+      if (!shorthandResult.success) {
+        return shorthandResult;
+      }
+
+      result[propertyName] = shorthandResult.value;
+      continue;
+    }
+
+    //
+    // Normal key:value
+    //
+    let rawKey = entry.slice(0, colonIndex).trim();
     const rawValue = entry.slice(colonIndex + 1).trim();
-    const key = rawKey.replace(/^["'`]|["'`]$/g, "");
 
-    const valueResult = this.evaluateExpression(rawValue, env, context, stack);
+    //
+    // ["foo"] syntax
+    //
+    if (
+      rawKey.startsWith("[") &&
+      rawKey.endsWith("]")
+    ) {
+      const keyResult = this.evaluateExpression(
+        rawKey.slice(1, -1),
+        env,
+        context,
+        stack
+      );
 
-    if (!valueResult.success) return valueResult;
+      if (!keyResult.success) {
+        return keyResult;
+      }
 
-    result[key] = valueResult.value;
+      rawKey = String(keyResult.value);
+    } else {
+      rawKey = rawKey.replace(/^["'`]|["'`]$/g, "");
+    }
+
+    //
+    // Nested object
+    //
+    if (
+      rawValue.startsWith("{") &&
+      rawValue.endsWith("}")
+    ) {
+      const nestedResult = this.evaluateObjectExpression(
+        rawValue,
+        env,
+        context,
+        stack
+      );
+
+      if (!nestedResult.success) {
+        return nestedResult;
+      }
+
+      result[rawKey] = nestedResult.value;
+      continue;
+    }
+
+    //
+    // Everything else
+    //
+    const valueResult = this.evaluateExpression(
+      rawValue,
+      env,
+      context,
+      stack
+    );
+
+    if (!valueResult.success) {
+      return valueResult;
+    }
+
+    result[rawKey] = valueResult.value;
   }
 
   return {
     success: true,
     value: result,
-    description: `${expr} = ${JSON.stringify(result)}`
+    description: `${expr} = ${this.formatValueForDescription(result)}`
   };
 }
 
@@ -1971,47 +2381,228 @@ findMatchingConditionalColon(text, questionIndex) {
     return null;
   }
 
-  extractFunctionParams(functionName, source) {
-    const escaped = this.escapeRegExp(functionName);
+normaliseRawParameterList(rawParameterList) {
+  return this.splitTopLevelArguments(String(rawParameterList || ""))
+    .map((param) => this.normaliseRawParameter(param))
+    .filter(Boolean);
+}
 
-    const jsMatch =
-      source.match(new RegExp(`function\\s+${escaped}\\s*\\(([^)]*)\\)`)) ||
-      source.match(new RegExp(`${escaped}\\s*=\\s*(?:async\\s*)?\\(([^)]*)\\)\\s*=>`));
+normaliseRawParameter(rawParameter) {
+  const raw = String(rawParameter || "").trim();
 
-    if (jsMatch) {
-      return jsMatch[1]
-        .split(",")
-        .map((param) => param.trim().split("=")[0].trim())
-        .filter(Boolean);
-    }
+  if (!raw) return "";
 
-    const pyMatch = source.match(new RegExp(`def\\s+${escaped}\\s*\\(([^)]*)\\):`));
+  const withoutTypeAnnotation = this.stripTopLevelTypeAnnotation(raw);
+  const withoutDefault = this.stripTopLevelDefaultValue(withoutTypeAnnotation);
 
-    if (pyMatch) {
-      return pyMatch[1]
-        .split(",")
-        .map((param) => param.trim().split("=")[0].trim())
-        .filter(Boolean);
-    }
+  return withoutDefault.trim();
+}
 
-    return [];
+stripTopLevelTypeAnnotation(rawParameter) {
+  const text = String(rawParameter || "").trim();
+
+  if (
+    text.startsWith("{") ||
+    text.startsWith("[")
+  ) {
+    return text;
   }
+
+  const colonIndex = this.findTopLevelCharacter(text, ":");
+
+  if (colonIndex === -1) return text;
+
+  return text.slice(0, colonIndex).trim();
+}
+
+findMatchingParen(text, openParenIndex) {
+  return this.findMatchingDelimiter(text, openParenIndex, "(", ")");
+}
+
+findMatchingDelimiter(text, openIndex, openChar, closeChar) {
+  let depth = 0;
+  let inString = false;
+  let stringChar = "";
+
+  for (let i = openIndex; i < text.length; i++) {
+    const char = text[i];
+
+    if (inString) {
+      if (char === "\\") {
+        i++;
+        continue;
+      }
+
+      if (char === stringChar) {
+        inString = false;
+        stringChar = "";
+      }
+
+      continue;
+    }
+
+    if (char === "'" || char === `"` || char === "`") {
+      inString = true;
+      stringChar = char;
+      continue;
+    }
+
+    if (char === openChar) depth++;
+    if (char === closeChar) depth--;
+
+    if (depth === 0) return i;
+  }
+
+  return -1;
+}
+
+  extractFunctionParams(functionName, source) {
+  const text = String(source || "");
+  const escaped = this.escapeRegExp(functionName);
+
+  const jsFunctionMatch = new RegExp(
+    `(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\s*\\(`
+  ).exec(text);
+
+  if (jsFunctionMatch) {
+    const openParenIndex = text.indexOf("(", jsFunctionMatch.index);
+
+    if (openParenIndex !== -1) {
+      const closeParenIndex = this.findMatchingParen(text, openParenIndex);
+
+      if (closeParenIndex !== -1) {
+        return this.normaliseRawParameterList(
+          text.slice(openParenIndex + 1, closeParenIndex)
+        );
+      }
+    }
+  }
+
+  const jsArrowMatch = new RegExp(
+    `(?:export\\s+)?(?:const|let|var)?\\s*${escaped}\\s*=\\s*(?:async\\s*)?`
+  ).exec(text);
+
+  if (jsArrowMatch) {
+    const afterMatchIndex = jsArrowMatch.index + jsArrowMatch[0].length;
+    const nextText = text.slice(afterMatchIndex).trimStart();
+    const offset = afterMatchIndex + (text.slice(afterMatchIndex).length - nextText.length);
+
+    if (nextText.startsWith("(")) {
+      const openParenIndex = offset;
+      const closeParenIndex = this.findMatchingParen(text, openParenIndex);
+
+      if (closeParenIndex !== -1) {
+        return this.normaliseRawParameterList(
+          text.slice(openParenIndex + 1, closeParenIndex)
+        );
+      }
+    }
+
+    const singleParamMatch = nextText.match(/^([A-Za-z_$][\w$]*)\s*=>/);
+
+    if (singleParamMatch) {
+      return [singleParamMatch[1]];
+    }
+  }
+
+  const pyFunctionMatch = new RegExp(
+    `def\\s+${escaped}\\s*\\(`
+  ).exec(text);
+
+  if (pyFunctionMatch) {
+    const openParenIndex = text.indexOf("(", pyFunctionMatch.index);
+
+    if (openParenIndex !== -1) {
+      const closeParenIndex = this.findMatchingParen(text, openParenIndex);
+
+      if (closeParenIndex !== -1) {
+        return this.normaliseRawParameterList(
+          text.slice(openParenIndex + 1, closeParenIndex)
+        );
+      }
+    }
+  }
+
+  return [];
+}
 
   extractFunctionBody(source) {
-    const braceStart = source.indexOf("{");
+  const text = String(source || "").trim();
 
-    if (braceStart >= 0) {
-      return source.slice(braceStart + 1, source.lastIndexOf("}"));
+  if (!text) return "";
+
+  // ---------- JavaScript / TypeScript ----------
+
+  const braceIndex = text.indexOf("{");
+
+  if (braceIndex !== -1) {
+    const closingBrace = this.findMatchingDelimiter(
+      text,
+      braceIndex,
+      "{",
+      "}"
+    );
+
+    if (closingBrace !== -1) {
+      return text
+        .slice(braceIndex + 1, closingBrace)
+        .trim();
     }
-
-    const colonIndex = source.indexOf(":");
-
-    if (colonIndex >= 0) {
-      return source.slice(colonIndex + 1);
-    }
-
-    return source;
   }
+
+  // ---------- Arrow function with expression body ----------
+
+  const arrowIndex = text.indexOf("=>");
+
+  if (arrowIndex !== -1) {
+    const expression = text
+      .slice(arrowIndex + 2)
+      .trim();
+
+    if (!expression.startsWith("{")) {
+      return `return ${expression.replace(/;$/, "")};`;
+    }
+  }
+
+  // ---------- Python ----------
+
+  const lines = text.split(/\r?\n/);
+
+  const defLine = lines.findIndex(line =>
+    /^\s*def\s+/.test(line)
+  );
+
+  if (defLine !== -1) {
+    const body = [];
+    let indent = null;
+
+    for (let i = defLine + 1; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (!line.trim()) {
+        body.push("");
+        continue;
+      }
+
+      const currentIndent =
+        line.match(/^\s*/)[0].length;
+
+      if (indent === null) {
+        indent = currentIndent;
+      }
+
+      if (currentIndent < indent) {
+        break;
+      }
+
+      body.push(line.slice(indent));
+    }
+
+    return body.join("\n").trim();
+  }
+
+  return "";
+}
 
   extractAssignments(body) {
     return [...this.extractJavascriptAssignments(body), ...this.extractPythonAssignments(body)];
@@ -2090,17 +2681,39 @@ findMatchingConditionalColon(text, questionIndex) {
   }
 
   extractReturnExpression(body) {
-    const text = String(body || "");
+  const statements = this.extractExecutableStatements(body);
 
-    const returnIndex = text.lastIndexOf("return ");
-    if (returnIndex >= 0) {
-      const start = returnIndex + "return ".length;
-      const end = this.findReturnExpressionEnd(text, start);
-      return text.slice(start, end).replace(/;$/, "").trim();
+  for (let i = statements.length - 1; i >= 0; i--) {
+    const statement = statements[i];
+
+    if (statement.type === "return") {
+      return String(statement.expression || "").trim();
     }
 
-    return null;
+    if (statement.type === "if-return") {
+      return String(statement.returnExpression || "").trim();
+    }
+
+    if (
+      statement.type === "if-branch" &&
+      Array.isArray(statement.statements)
+    ) {
+      for (let j = statement.statements.length - 1; j >= 0; j--) {
+        const nested = statement.statements[j];
+
+        if (nested.type === "return") {
+          return String(nested.expression || "").trim();
+        }
+
+        if (nested.type === "if-return") {
+          return String(nested.returnExpression || "").trim();
+        }
+      }
+    }
   }
+
+  return null;
+}
 
   findReturnExpressionEnd(text, start) {
     let depth = 0;

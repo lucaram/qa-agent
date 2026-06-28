@@ -419,6 +419,22 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: tradeValue < 0; Detected direct throw for validation condition: Trade value cannot be negative
 
+1 - **Deterministic example: calculateFxFee return behaviour** / calculateFxFee
+  - Scenario: Call calculateFxFee with valid representative inputs.
+  - Inputs: Call calculateFxFee with valid representative inputs. | args: 10; 10; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: 0
+  - Expected calculation: throw guard tradeValue < 0 = false; throw guard !settlementCurrency || !instrumentCurrency = false; guard String(settlementCurrency).toUpperCase() === String(instrumentCurrency).toUpperCase() = true; result = 0 = 0
+  - Expected behaviour: Returns 0.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals 0.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+
 1 - **Deterministic example: calculateFxFee validation exception** / calculateFxFee
   - Scenario: Call calculateFxFee with invalid input for validation condition: tradeValue < 0.
   - Inputs: Call calculateFxFee with invalid input for validation condition: tradeValue < 0. | args: -1; 10; 10 | setup: 
@@ -451,6 +467,22 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: !settlementCurrency || !instrumentCurrency; Detected direct throw for validation condition: Currency is required
 
+1 - **Deterministic example: validateOrder return behaviour** / validateOrder
+  - Scenario: Call validateOrder with valid representative inputs.
+  - Inputs: Call validateOrder with valid representative inputs. | args: {"side":"BUY","symbol":"ABC","quantity":10,"limitPrice":10} | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: true
+  - Expected calculation: throw guard !order = false; throw guard !["BUY", "SELL"].includes(String(order.side || "").toUpperCase()) = false; throw guard !order.symbol = false; throw guard order.quantity <= 0 = false; throw guard order.limitPrice !== undefined && order.limitPrice < 0 = false; result = true
+  - Expected behaviour: Returns true.
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals true.
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Scenario: Call validateOrder with invalid input for validation condition: !order.
   - Inputs: Call validateOrder with invalid input for validation condition: !order. | args: null | setup: 
@@ -466,6 +498,54 @@ None identified.
   - Source: deterministic-test-data-builder
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in orders.js: !order; Detected direct throw for validation condition: Order is required
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Scenario: Call validateOrder with invalid input for validation condition: !order.symbol.
+  - Inputs: Call validateOrder with invalid input for validation condition: !order.symbol. | args: {"symbol":null,"side":"BUY","quantity":10,"limitPrice":10} | setup: 
+  - Expected kind: exception
+  - Expected value available: No
+  - Expected value: Not specified.
+  - Expected calculation: Not specified
+  - Expected behaviour: Throws Symbol is required.
+  - Expected exception: Symbol is required
+  - Assertion hint: Assert call throws Symbol is required.
+  - Safe for direct generation: Yes
+  - Reliability: high — Exception path was generated from explicit validation logic.
+  - Source: deterministic-test-data-builder
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: !order.symbol; Detected direct throw for validation condition: Symbol is required
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Scenario: Call validateOrder with invalid input for validation condition: order.quantity <= 0.
+  - Inputs: Call validateOrder with invalid input for validation condition: order.quantity <= 0. | args: {"quantity":0,"side":"BUY","symbol":"ABC","limitPrice":10} | setup: 
+  - Expected kind: exception
+  - Expected value available: No
+  - Expected value: Not specified.
+  - Expected calculation: Not specified
+  - Expected behaviour: Throws Quantity must be positive.
+  - Expected exception: Quantity must be positive
+  - Assertion hint: Assert call throws Quantity must be positive.
+  - Safe for direct generation: Yes
+  - Reliability: high — Exception path was generated from explicit validation logic.
+  - Source: deterministic-test-data-builder
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: order.quantity <= 0; Detected direct throw for validation condition: Quantity must be positive
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Scenario: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0.
+  - Inputs: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0. | args: {"limitPrice":-1,"side":"BUY","symbol":"ABC","quantity":10} | setup: 
+  - Expected kind: exception
+  - Expected value available: No
+  - Expected value: Not specified.
+  - Expected calculation: Not specified
+  - Expected behaviour: Throws Limit price cannot be negative.
+  - Expected exception: Limit price cannot be negative
+  - Assertion hint: Assert call throws Limit price cannot be negative.
+  - Safe for direct generation: Yes
+  - Reliability: high — Exception path was generated from explicit validation logic.
+  - Source: deterministic-test-data-builder
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: order.limitPrice !== undefined && order.limitPrice < 0; Detected direct throw for validation condition: Limit price cannot be negative
 
 1 - **Deterministic example: valuePosition return behaviour** / valuePosition
   - Scenario: Call valuePosition with valid representative inputs.
@@ -923,6 +1003,32 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: executionPrice < 0 || charges < 0; Detected direct throw for validation condition: Amount cannot be negative
 
+1 - **Deterministic example: calculatePositionReport return behaviour** / calculatePositionReport
+  - Scenario: Call calculatePositionReport with valid representative inputs.
+  - Inputs: Call calculatePositionReport with valid representative inputs. | args: {"quantity":10,"averagePrice":10,"symbol":"ABC"}; 10 | setup: 
+  - Expected kind: return
+  - Expected value available: Yes
+  - Expected value: {"symbol":"ABC","quantity":10,"averagePrice":10,"marketPrice":10,"marketValue":100,"unrealisedPnl":0,"pnlPercent":0}
+  - Expected calculation: marketValue = position.quantity * marketPrice = 10 * 10 = 100; unrealisedPnl = calculateUnrealisedPnl(position, marketPrice) = 0; pnlPercent = position.averagePrice === 0
+    ? 0
+    : (unrealisedPnl / (position.quantity * position.averagePrice)) * 100 = (unrealisedPnl / (position.quantity * position.averagePrice)) * 100 = (0 / (10 * 10)) * 100 = 0; result = {
+    symbol: position.symbol,
+    quantity: position.quantity,
+    averagePrice: position.averagePrice,
+    marketPrice,
+    marketValue,
+    unrealisedPnl,
+    pnlPercent
+  } = {"symbol":"ABC","quantity":10,"averagePrice":10,"marketPrice":10,"marketValue":100,"unrealisedPnl":0,"pnlPercent":0}
+  - Expected behaviour: Returns [object Object].
+  - Expected exception: Not specified
+  - Assertion hint: Assert return value equals [object Object].
+  - Safe for direct generation: Yes
+  - Reliability: high — Expected value was computed deterministically from source expressions and data flow.
+  - Source: deterministic-test-data-builder
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+
 1 - **Deterministic example: applyCorporateActionToPosition validation exception** / applyCorporateActionToPosition
   - Scenario: Call applyCorporateActionToPosition with invalid input for validation condition: !corporateAction.
   - Inputs: Call applyCorporateActionToPosition with invalid input for validation condition: !corporateAction. | args: 10; null | setup: 
@@ -1071,6 +1177,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: tradeValue < 0; Detected direct throw for validation condition: Trade value cannot be negative
 
+1 - **Deterministic example: calculateFxFee return behaviour** / calculateFxFee
+  - Type: unit
+  - Scenario: Call calculateFxFee with valid representative inputs.
+  - Expected: Returns 0.
+  - Test examples: calculatefxfee-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from fees.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+
 1 - **Deterministic example: calculateFxFee validation exception** / calculateFxFee
   - Type: unit
   - Scenario: Call calculateFxFee with invalid input for validation condition: tradeValue < 0.
@@ -1091,6 +1207,16 @@ None identified.
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in fees.js: !settlementCurrency || !instrumentCurrency; Detected direct throw for validation condition: Currency is required
 
+1 - **Deterministic example: validateOrder return behaviour** / validateOrder
+  - Type: unit
+  - Scenario: Call validateOrder with valid representative inputs.
+  - Expected: Returns true.
+  - Test examples: validateorder-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from orders.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
+
 1 - **Deterministic example: validateOrder validation exception** / validateOrder
   - Type: unit
   - Scenario: Call validateOrder with invalid input for validation condition: !order.
@@ -1100,6 +1226,36 @@ None identified.
   - Confidence: high
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in orders.js: !order; Detected direct throw for validation condition: Order is required
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Type: unit
+  - Scenario: Call validateOrder with invalid input for validation condition: !order.symbol.
+  - Expected: Throws Symbol is required.
+  - Test examples: validateorder-deterministic-order-symbol
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: !order.symbol; Detected direct throw for validation condition: Symbol is required
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Type: unit
+  - Scenario: Call validateOrder with invalid input for validation condition: order.quantity <= 0.
+  - Expected: Throws Quantity must be positive.
+  - Test examples: validateorder-deterministic-order-quantity-0
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: order.quantity <= 0; Detected direct throw for validation condition: Quantity must be positive
+
+1 - **Deterministic example: validateOrder validation exception** / validateOrder
+  - Type: unit
+  - Scenario: Call validateOrder with invalid input for validation condition: order.limitPrice !== undefined && order.limitPrice < 0.
+  - Expected: Throws Limit price cannot be negative.
+  - Test examples: validateorder-deterministic-order-limitprice-undefined-order-limitprice-0
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: validationRule, exceptionPath, mutation
+  - Evidence: Detected validation condition in orders.js: order.limitPrice !== undefined && order.limitPrice < 0; Detected direct throw for validation condition: Limit price cannot be negative
 
 1 - **Deterministic example: valuePosition return behaviour** / valuePosition
   - Type: unit
@@ -1380,6 +1536,16 @@ None identified.
   - Confidence: high
   - Covers: validationRule, exceptionPath, mutation
   - Evidence: Detected validation condition in settlement.js: executionPrice < 0 || charges < 0; Detected direct throw for validation condition: Amount cannot be negative
+
+1 - **Deterministic example: calculatePositionReport return behaviour** / calculatePositionReport
+  - Type: unit
+  - Scenario: Call calculatePositionReport with valid representative inputs.
+  - Expected: Returns [object Object].
+  - Test examples: calculatepositionreport-deterministic-return
+  - Source: deterministic-test-data-builder
+  - Confidence: high
+  - Covers: publicApi, algorithmStep, calculationFormula, dataFlow, dependencyFlow, mutation
+  - Evidence: Expected value computed by evaluating reachable statements from stockbroking.js.; Execution path validated: Generated valid input does not hit a throw path and all branch/expression guards are evaluable.
 
 1 - **Deterministic example: applyCorporateActionToPosition validation exception** / applyCorporateActionToPosition
   - Type: unit
